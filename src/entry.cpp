@@ -1,6 +1,3 @@
-//
-// Created by kasm-user on 1/19/23.
-//
 #include <cstdio>
 #include <iostream>
 #include "src/cud/functs.h"
