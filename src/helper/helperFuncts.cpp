@@ -13,3 +13,4 @@ void init(vector<double>* vVals, vector<double>* uVals, vector<double>* aVals, v
 
 
 }
+

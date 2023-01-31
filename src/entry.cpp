@@ -6,6 +6,7 @@
 #include "src/cud/functs.h"
 #include "lib/matplotplusplus/source/matplot/matplot.h"
 #include <random>
+#include <vector>
 #include <limits>
 #include "src/vidStuff/vidReader.h"
 
@@ -20,6 +21,7 @@ int main(void)
     printf("\x1B[93mEye 1 Input Parameters : \033[0m\t");
     printf("\x1B[34mHeight : \033[0m");
     cout << "yo" << endl;
-    mrain();
+    vector<vector<float>> temp;
+    mrain(temp);
     return 0;
 }

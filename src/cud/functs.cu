@@ -2,6 +2,7 @@
 #include <iostream>
 #include <libavcodec/avcodec.h>
 #include "functs.h"
+#include <vector>
 
 using namespace std;
 __global__
@@ -18,34 +19,41 @@ void arrInit(int n, float a, float *x, float *y)
     if (i < n) y[i] = a*x[i] + y[i];
 }
 
-int mrain(void)
+int mrain(vector<vector<float>> &gcuArr)
 {
     int N = 1<<26;
-    float *x, *y, *d_x, *d_y;
-    x = (float*)malloc(N*sizeof(float)); //yo
-    y = (float*)malloc(N*sizeof(float));
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+    for(int i = 0; i < deviceCount; i+=1){
+        vector<float> temp(1<<26, 5);
+        gcuArr.push_back(temp);
+    }
+    gcuArr[1][3] = 4;
+    float *d_x, *d_y;
 
     cudaMalloc(&d_x, N*sizeof(float));
     cudaMalloc(&d_y, N*sizeof(float));
 
-    for (int i = 0; i < N; i++) {
-        x[i] = 1.0f;
-        y[i] = 2.0f;
-    }
 
-    cudaMemcpy(d_x, x, N*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_y, y, N*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_x, gcuArr[0].data(), N*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_y, gcuArr[1].data(), N*sizeof(float), cudaMemcpyHostToDevice);
 
     // Perform SAXPY on 1M elements
-    saxpy<<<(N+1023)/1024, 1024>>>(N, 2.0f, d_x, d_y);
+    for (int i = 0; i < 4; i+=1){
+        saxpy<<<(N+1023)/1024, 1024>>>(N, 2.0f, d_x, d_y);
+    }
 
-    cudaMemcpy(y, d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaMemcpy(gcuArr[1].data(), d_y, N*sizeof(float), cudaMemcpyDeviceToHost);
 
     cudaDeviceProp a{};
-    int deviceCount;
-    cudaGetDeviceCount(&deviceCount);
+
     cudaGetDeviceProperties(&a, 0);
     std::cout << "Number of devices :         " << deviceCount << endl;
+    std::cout << "Device type :               " << a.managedMemory << endl;
+    std::cout << "Test var 3 :                " << gcuArr[1][4] << endl;
+
+    cudaSetDevice(0);
 
     float maxError = 0.0f;
 //    for (int i = 0; i < N; i++)
@@ -54,6 +62,4 @@ int mrain(void)
 
     cudaFree(d_x);
     cudaFree(d_y);
-    free(x);
-    free(y);
 }
