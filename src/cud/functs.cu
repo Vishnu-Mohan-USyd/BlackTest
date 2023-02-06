@@ -21,6 +21,32 @@ void saxpy(int n, float a, float *x, float *y)
 //    y[i] = a*x[i] + y[i];
 //}
 
+int visualPass1 (){
+
+    // Video processing parameters
+    VideoReaderState vr_state;
+    if (!video_reader_open(&vr_state, "/Users/vishnumohan/CLionProjects/Workin_Metal/assets/switz.mp4")) {
+        cout << "ERROR!!" << endl;
+        cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
+    }
+
+    // Allocate frame buffer
+    constexpr int ALIGNMENT = 128;
+    const int frame_width = vr_state.width;
+    const int frame_height = vr_state.height;
+    uint8_t* frame_data;
+    cout << frame_height << endl;
+    printf("\x1B[34m                         \tWidth : \033[0m"); cout << frame_width << endl;
+    if (posix_memalign((void**)&frame_data, ALIGNMENT, frame_width * frame_height * 4) != 0) {
+        cout << "ERROR!!" << endl;
+        printf("Couldn't allocate frame buffer\n");
+    }
+
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+
+}
+
 int mrain(vector<vector<float>> &gcuArr)
 {
     int N = 1<<27;
