@@ -12,13 +12,13 @@ using namespace matplot;
 
 int main(void)
 {
-    cout << endl << "Beginning data initiation..." << endl;
-    printf("\x1B[93mProcessing Step : \033[0m\t\t");
-    cout << "    Video Frame Processing" << endl;
-    printf("\x1B[93mEye 1 Input Parameters : \033[0m\t");
-    printf("\x1B[34mHeight : \033[0m");
-    cout << "yo" << endl;
+//    cout << endl << "Beginning data initiation..." << endl;
+//    printf("\x1B[93mProcessing Step : \033[0m\t\t");
+//    cout << "    Video Frame Processing" << endl;
+//    printf("\x1B[93mEye 1 Input Parameters : \033[0m\t");
+//    printf("\x1B[34mHeight : \033[0m");
     vector<vector<float>> temp;
-    mrain(temp);
+    // mrain(temp);
+    visualPass1();
     return 0;
 }
