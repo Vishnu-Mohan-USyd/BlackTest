@@ -125,20 +125,27 @@ int visualPass1 (){
         threads.push_back (std::thread ([&,device_id] () {
             cudaSetDevice (device_id);
             if(device_id == 0){
-                for(int i = 0; i < 100; i +=1){
-                    cudaMemcpyAsync(Y_1, frameStorage[0], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream1);
-                    cudaMemcpyAsync(U_1, frameStorage[1], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream1);
+                for(int i = 0; i < 1000; i +=1){
+                    if((i % 36 == 1) || (i == 1)) {
+                        cudaMemcpyAsync(Y_1, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
+                                        stream1);
+                        cudaMemcpyAsync(U_1, frameStorage[1], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
+                                        stream1);
+                        // cudaStreamSynchronize(stream1);
+                    }
                 }
 
             } else if(device_id == 1){
-                for(int i = 0; i < 100; i +=1){
-                    cudaMemcpyAsync(Y_2, frameStorage[2], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream2);
-                    cudaMemcpyAsync(U_2, frameStorage[3], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream2);
+                for(int i = 0; i < 1000; i +=1){
+                    if((i % 36 == 1) || (i == 1)) {
+                        cudaMemcpyAsync(Y_2, frameStorage[2], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
+                                        stream2);
+                        cudaMemcpyAsync(U_2, frameStorage[3], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
+                                        stream2);
+                        // cudaStreamSynchronize(stream2);
+                    }
                 }
-
             }
-
-
         }));
     }
     for (auto &thread: threads)
