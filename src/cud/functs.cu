@@ -23,11 +23,11 @@ void saxpy(int n, float a, float *x, float *y)
 }
 
 __global__
-void eye1Pipeline(int foveaPoint, int pixelCount, float *Y, float *U)
+void eye1Pipeline(int foveaPoint, int pixelCount, float  *og)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // if (i < (pixelCount -1)) Y[i] = (int) Y[i] ;
+     og[i] = 2 ;
 
 }
 
@@ -63,7 +63,8 @@ int visualPass1 (){
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
-    float *Y_1, *U_1, *V_1, *Y_2, *U_2, *V_2, pinnedTemp;
+    ::uint8_t *Y_1, *U_1, *V_1, *Y_2, *U_2, *V_2;
+    float* oneGuy, pinnedTemp;
 
     cudaDeviceProp a{};
     cudaSetDevice(0);
@@ -77,6 +78,7 @@ int visualPass1 (){
     cudaStreamCreate ( &stream1) ;
     cudaStreamCreate ( &stream3) ;
     cudaMalloc(&Y_1, numOfPixels*sizeof(::uint8_t));
+    cudaMalloc(&oneGuy, numOfPixels*sizeof(float ));
     cudaMalloc(&U_1, numOfPixels*sizeof(::uint8_t));
 //    cudaMalloc(&V_1, numOfPixels*sizeof(float));
     cudaSetDevice(1);
@@ -92,7 +94,7 @@ int visualPass1 (){
     int64_t pts;
     AVFrame* frame = video_reader_read_frame(&vr_state, frame_data, &pts);
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
-    // cudaMallocHost((void**)&pinnedTemp, bytes);
+    cudaMallocHost((void**)&pinnedTemp, bytes);
     vector<::uint8_t *> frameStorage;
     for (int fr = 0; fr < 5 ; fr+=1){
         frame = video_reader_read_frame(&vr_state, frame_data, &pts);
@@ -119,6 +121,7 @@ int visualPass1 (){
     std::vector<std::thread> threads;
 
 
+    float * y1;
     auto start = std::chrono::high_resolution_clock::now();
     for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
     {
@@ -131,10 +134,15 @@ int visualPass1 (){
                                         stream1);
                         cudaMemcpyAsync(U_1, frameStorage[1], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
                                         stream1);
-                        // cudaStreamSynchronize(stream1);
+                        //cudaStreamSynchronize(stream1);
                     }
+                    // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream3>>>(0, numOfPixels, oneGuy);
+                    // cudaStreamSynchronize(stream3);
                 }
 
+                // cudaDeviceSynchronize();
+                // cudaMemcpyAsync(frameStorage[4], oneGuy, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost, stream1);
+                // cudaStreamSynchronize(stream1);
             } else if(device_id == 1){
                 for(int i = 0; i < 1000; i +=1){
                     if((i % 36 == 1) || (i == 1)) {
@@ -142,8 +150,10 @@ int visualPass1 (){
                                         stream2);
                         cudaMemcpyAsync(U_2, frameStorage[3], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
                                         stream2);
-                        // cudaStreamSynchronize(stream2);
+                        //cudaStreamSynchronize(stream2);
                     }
+                    // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream4>>>(0, numOfPixels, Y_2,U_2);
+                    // cudaStreamSynchronize(stream4);
                 }
             }
         }));
@@ -204,6 +214,11 @@ int visualPass1 (){
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
     cout << "Net duration of visual pass : " << duration << endl;
+
+
+
+//            cudaMemcpyAsync(frame->data[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
+// cout << "TestVal : " << (int) y1[2] << endl;
 
     cudaFree(Y_1);
     cudaFree(Y_2);
