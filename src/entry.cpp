@@ -17,8 +17,9 @@ int main(void)
 //    cout << "    Video Frame Processing" << endl;
 //    printf("\x1B[93mEye 1 Input Parameters : \033[0m\t");
 //    printf("\x1B[34mHeight : \033[0m");
-    vector<vector<float>> temp;
+    // vector<vector<float>> temp;
     // mrain(temp);
-    visualPass1();
+    // visualPass1();
+    testFunct();
     return 0;
 }
