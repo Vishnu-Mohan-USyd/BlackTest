@@ -6,6 +6,7 @@
 #ifndef TEST1_FUNCTS_H
 #define TEST1_FUNCTS_H
 int visualPass1();
+int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
 void saxpy();
 void eye1Pipeline();
