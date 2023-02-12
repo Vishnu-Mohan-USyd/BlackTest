@@ -140,7 +140,7 @@ int testFunct (){
             cudaMemcpyAsync(bDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
             cudaSetDevice(1);
             cudaMemcpyAsync(cDest, cHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
-            cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
+            // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
 
 //        cudaStreamSynchronize(stream1);
 //        cudaStreamSynchronize(stream2);
