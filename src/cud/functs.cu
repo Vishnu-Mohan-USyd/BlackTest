@@ -25,11 +25,26 @@ void saxpy(int n, float a, float *x, float *y)
 }
 
 __global__
+void formRGCinputs(int foveaPoint, int pixelCount, ::uint8_t  *Y, ::uint8_t *U, ::uint8_t *V, float *rgc)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    /* Here we aim to divide i into different retinal compartments
+     * Fovea - 256 x 256
+     * Parafovea - 500 plus on all sides
+     * Perifovea - */
+
+
+
+
+}
+
+__global__
 void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-     a[i] = 59 + (int) b[i] ;
+     if(i < 1000) a[i] = 22.89;
 
 }
 
@@ -223,7 +238,8 @@ int visualPass1 (){
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
-    ::uint8_t *Y_1, *U_1, *V_1, *Y_2, *U_2, *V_2;
+    float *rgcCurrents;
+    ::uint8_t *Y_1, *U_1, *V_1;
     ::uint8_t *frameHolderHost, *pinnedTemp;
 
     cudaDeviceProp a{};
@@ -238,15 +254,13 @@ int visualPass1 (){
     cudaStreamCreate ( &memStream1) ;
     cudaStreamCreate ( &funcStream1) ;
     cudaMalloc(&Y_1, numOfPixels*sizeof(::uint8_t));
+    cudaMalloc(&rgcCurrents, numOfPixels*sizeof(float)); // RGC Currents are held here
     // cudaMalloc(&frameHolderHost, numOfPixels*sizeof(float ));
     cudaMalloc(&U_1, numOfPixels*sizeof(::uint8_t));
     cudaMalloc(&V_1, numOfPixels*sizeof(::uint8_t));
     cudaSetDevice(1);
     cudaStreamCreate(&memStream2);
-    cudaStreamCreate ( &funcStream2) ;
-    cudaMalloc(&Y_2, numOfPixels*sizeof(::uint8_t));
-    cudaMalloc(&U_2, numOfPixels*sizeof(::uint8_t));
-    cudaMalloc(&V_2, numOfPixels*sizeof(::uint8_t));
+    cudaStreamCreate ( &funcStream2);
 
     // Begin main loop
 
@@ -262,7 +276,7 @@ int visualPass1 (){
         frameStorage.push_back(frame->data[0]);
         cout << fr << endl;
     }
-    ::memcpy(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t));
+    // ::memcpy(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t));
     int frameIndex = 0;
     // cout << (int) frameStorage[5][8] << endl;
 
@@ -270,11 +284,7 @@ int visualPass1 (){
     cudaSetDevice(0);
     cudaMemcpy(Y_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
     cudaMemcpy(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-//            cudaMemcpyAsync(V_1, frame->data[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream1);
-    cudaDeviceSynchronize();
-    cudaSetDevice(1);
-    cudaMemcpy(Y_2, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(U_2, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
     ::memcpy(frameHolderHost, frameStorage[0], numOfPixels*sizeof(::uint8_t));
 //            cudaMemcpyAsync(V_2, frame->data[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
     cudaDeviceSynchronize();
@@ -298,10 +308,6 @@ int visualPass1 (){
             cudaMemcpyAsync(Y_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
             cudaMemcpyAsync(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
             cudaMemcpyAsync(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
-            cudaSetDevice(1);
-            cudaMemcpyAsync(Y_2, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream2);
-            cudaMemcpyAsync(U_2, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream2);
-            cudaMemcpyAsync(V_2, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream2);
 //            cudaSetDevice(0);
 //            cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
         }
@@ -312,9 +318,9 @@ int visualPass1 (){
             cudaStreamSynchronize(memStream2);
         }
         cudaSetDevice(0);
-        eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(0, numOfPixels, Y_1, U_1);
+        // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(0, numOfPixels, Y_1, U_1);
+        formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, Y_1, U_1, V_1, rgcCurrents);
         cudaSetDevice(1);
-        eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream2>>>(0, numOfPixels, Y_2, U_2);
     }
 //    for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
 //    {
@@ -408,13 +414,17 @@ int visualPass1 (){
     auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
     cout << "Net duration of visual pass : " << duration << endl;
 
+    cudaSetDevice(0);
+    cout << (int) frameHolderHost[300] << endl;
+    cudaMemcpy(frameHolderHost, Y_1, numOfPixels*sizeof(::uint8_t), cudaMemcpyDeviceToHost);
+    cout << (int) frameHolderHost[300] << endl;
+
 
 
 //            cudaMemcpyAsync(frame->data[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
 // cout << "TestVal : " << (int) y1[2] << endl;
 
     cudaFree(Y_1);
-    cudaFree(Y_2);
 //    cudaFree(Y_1);
 //    cudaFree(Y_2);
 
