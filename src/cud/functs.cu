@@ -25,15 +25,51 @@ void saxpy(int n, float a, float *x, float *y)
 }
 
 __global__
-void formRGCinputs(int foveaPoint, int pixelCount, ::uint8_t  *Y, ::uint8_t *U, ::uint8_t *V, float *rgc)
+void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uint8_t  *Y, ::uint8_t *U, ::uint8_t *V, float *rgc)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     /* Here we aim to divide i into different retinal compartments
-     * Fovea - 256 x 256
-     * Parafovea - 500 plus on all sides
-     * Perifovea - */
+     * Fovea - 300 x 300 || Total RGCs are 90,000
+     * Parafovea - 200 plus on all sides || Total RGCs are 100,000
+     * Perifovea - 300 plus on all sides || Total RGCs are 133,200
+     * */
 
+    int fovY = foveaPoint/frameW;
+    int fovX = foveaPoint - (fovY * frameW);
+    int currY = i/frameW;
+    int currX = i - (currY * frameW);
+    // rgc[i] = 2;
+
+    // Fovea Processing
+    if((currX >= fovX - 149) && (currY >= fovY - 149) && (currX <= fovX + 150) && (currY <= fovY + 150)){
+        // rgc[2] = 1;
+        int RGCoffset = 0;
+        int sectionWidth = 300;
+        rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[i] - (
+                (0.125 * (float)Y[(i - frameW) - 1]) + (0.125 * (float)Y[(i - frameW)]) + (0.125 * (float)Y[(i - frameW) + 1]) +
+                (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
+                        (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]));
+
+       // rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
+    }
+
+    // Parafoveal Processing
+    else if (// Inner Perimeters
+            (currX <= fovX - 149) && (currY <= fovY - 149) && (currX >= fovX + 150) && (currY >= fovY + 150) &&
+            // Outer Perimeters
+            (currX >= fovX - (149 + 200)) && (currY >= fovY - (149 + 200)) && (currX <= fovX + (150 + 200)) && (currY <= fovY + (150 + 200))){
+        // rgc[2] = 2;
+    }
+
+    //Perifoveal Processing
+    else if (
+            // Inner Perimeters
+            (currX <= fovX - (149 + 200)) && (currY <= fovY - (149 + 200)) && (currX >= fovX + (150 + 200)) && (currY >= fovY + (150 + 200)) &&
+            // Outer Perimeters
+            (currX >= fovX - (149 + 200 + 300)) && (currY >= fovY - (149 + 200 + 300)) && (currX <= fovX + (150 + 200 + 300)) && (currY <= fovY + (150 + 200 + 300))){
+        // rgc[2] = 3;
+    }
 
 
 
@@ -238,7 +274,8 @@ int visualPass1 (){
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
-    float *rgcCurrents;
+    float *rgcCurrents, *hostTest;
+    hostTest = (float*)malloc(numOfPixels*sizeof(float));
     ::uint8_t *Y_1, *U_1, *V_1;
     ::uint8_t *frameHolderHost, *pinnedTemp;
 
@@ -270,8 +307,9 @@ int visualPass1 (){
     AVFrame* frame = video_reader_read_frame(&vr_state, frame_data, &pts);
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
     cudaMallocHost((void**)&frameHolderHost, bytes);
+    cudaMallocHost((void**)&hostTest, numOfPixels * sizeof(float));
     vector<::uint8_t *> frameStorage;
-    for (int fr = 0; fr < 3 ; fr+=1){
+    for (int fr = 0; fr < 50 ; fr+=1){
         frame = video_reader_read_frame(&vr_state, frame_data, &pts);
         frameStorage.push_back(frame->data[0]);
         cout << fr << endl;
@@ -301,7 +339,7 @@ int visualPass1 (){
     for(int i = 0; i < 1000; i+=1){
 
         if(i%36 == 1){
-            ::memcpy(frameHolderHost, frameStorage[0], numOfPixels*sizeof(::uint8_t));
+            ::memcpy(frameHolderHost, frameStorage[22], numOfPixels*sizeof(::uint8_t));
             // Transfers data from Video array to local pinned memory
             // cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
             cudaSetDevice(0);
@@ -319,7 +357,7 @@ int visualPass1 (){
         }
         cudaSetDevice(0);
         // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(0, numOfPixels, Y_1, U_1);
-        formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, Y_1, U_1, V_1, rgcCurrents);
+        formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, frame_width, Y_1, U_1, V_1, rgcCurrents);
         cudaSetDevice(1);
     }
 //    for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
@@ -415,9 +453,12 @@ int visualPass1 (){
     cout << "Net duration of visual pass : " << duration << endl;
 
     cudaSetDevice(0);
-    cout << (int) frameHolderHost[300] << endl;
-    cudaMemcpy(frameHolderHost, Y_1, numOfPixels*sizeof(::uint8_t), cudaMemcpyDeviceToHost);
-    cout << (int) frameHolderHost[300] << endl;
+    cout << (int) hostTest[2] << endl;
+    cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
+    cout << (int) hostTest[89994] << endl;
+//    for(int i = 0; i < 90000; i +=1){
+//        if(hostTest[i] !=0) cout << i << ": " << hostTest[i] << endl;
+//    }
 
 
 
