@@ -46,15 +46,18 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
         // rgc[2] = 1;
         int RGCoffset = 0;
         int sectionWidth = 300;
-        rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[i] - (
-                (0.125 * (float)Y[(i - frameW) - 1]) + (0.125 * (float)Y[(i - frameW)]) + (0.125 * (float)Y[(i - frameW) + 1]) +
-                (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
-                        (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]));
+        float c1 = ((float)Y[i])/255;
+        float c2 = ((0.125 * (float)Y[(i - frameW) - 1]) + (0.125 * (float)Y[(i - frameW)]) + (0.125 * (float)Y[(i - frameW) + 1]) +
+                           (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
+                           (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]))/255;
+        float res  = c1 - c2;
+        if(res < 0) res = 0;
+        rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = res;
 
-       // rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
+        // rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
     }
 
-    // Parafoveal Processing
+        // Parafoveal Processing
     else if (// Inner Perimeters
             (currX <= fovX - 149) && (currY <= fovY - 149) && (currX >= fovX + 150) && (currY >= fovY + 150) &&
             // Outer Perimeters
@@ -62,9 +65,9 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
         // rgc[2] = 2;
     }
 
-    //Perifoveal Processing
+        //Perifoveal Processing
     else if (
-            // Inner Perimeters
+        // Inner Perimeters
             (currX <= fovX - (149 + 200)) && (currY <= fovY - (149 + 200)) && (currX >= fovX + (150 + 200)) && (currY >= fovY + (150 + 200)) &&
             // Outer Perimeters
             (currX >= fovX - (149 + 200 + 300)) && (currY >= fovY - (149 + 200 + 300)) && (currX <= fovX + (150 + 200 + 300)) && (currY <= fovY + (150 + 200 + 300))){
@@ -80,7 +83,7 @@ void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-     if(i < 1000) a[i] = 22.89;
+    if(i < 1000) a[i] = 22.89;
 
 }
 
@@ -187,12 +190,12 @@ int testFunct (){
 //        thread.join ();
 
     for(int i = 0; i < 2; i++){
-            cudaSetDevice(0);
-            cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
-            cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
-            cudaSetDevice(1);
-            cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
-            // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
+        cudaSetDevice(0);
+        cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
+        cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
+        cudaSetDevice(1);
+        cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
+        // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
 
 //        cudaStreamSynchronize(stream1);
 //        cudaStreamSynchronize(stream2);
@@ -309,7 +312,7 @@ int visualPass1 (){
     cudaMallocHost((void**)&frameHolderHost, bytes);
     cudaMallocHost((void**)&hostTest, numOfPixels * sizeof(float));
     vector<::uint8_t *> frameStorage;
-    for (int fr = 0; fr < 50 ; fr+=1){
+    for (int fr = 0; fr < 32 ; fr+=1){
         frame = video_reader_read_frame(&vr_state, frame_data, &pts);
         frameStorage.push_back(frame->data[0]);
         cout << fr << endl;
@@ -339,7 +342,7 @@ int visualPass1 (){
     for(int i = 0; i < 1000; i+=1){
 
         if(i%36 == 1){
-            ::memcpy(frameHolderHost, frameStorage[22], numOfPixels*sizeof(::uint8_t));
+            ::memcpy(frameHolderHost, frameStorage[11], numOfPixels*sizeof(::uint8_t));
             // Transfers data from Video array to local pinned memory
             // cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
             cudaSetDevice(0);
@@ -453,12 +456,16 @@ int visualPass1 (){
     cout << "Net duration of visual pass : " << duration << endl;
 
     cudaSetDevice(0);
-    cout << (int) hostTest[2] << endl;
+    // cout << (int) hostTest[2] << endl;
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
-    cout << (int) hostTest[89994] << endl;
-//    for(int i = 0; i < 90000; i +=1){
-//        if(hostTest[i] !=0) cout << i << ": " << hostTest[i] << endl;
-//    }
+    // cout << hostTest[89594] << endl;
+    for(int i = 0; i < 90000; i +=1){
+        if(i%300 == 0) cout << endl;
+        if (hostTest[i] <= 0.00) cout << ".";
+        else if (hostTest[i] > 0.00) cout << "x" ;
+
+
+    }
 
 
 
