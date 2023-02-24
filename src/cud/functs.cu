@@ -76,6 +76,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
         int RGCoffset = 90000;
         int sectionWidth = 0;
         int currentSum = 0;
+        int checkr = 0;
 //        if (((currY >= (fovY - (149 + 200))) && (currY <= (fovY - 149))) ||
 //                ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY + 150)) && (currY <= (fovY + (149 + 200)))))
 //            sectionWidth = 350;
@@ -103,10 +104,12 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
+                    checkr = 1;
                     compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY - (149)))/2 * sectionWidth)) + RGCoffset + currentSum;
                 }
                 // Right Section
                 else {
+                    checkr = 2;
                     compIndex = (rightAdder + (currX - (fovX + 150))/2 + ((currY - (fovY - (149)))/2 * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
@@ -115,14 +118,16 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
             else {
                 // Top Section
                 if(currY < fovY){
-                    sectionWidth = 300;
-                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY - (349)))/2 * sectionWidth)) + RGCoffset;
+                    checkr = 3;
+                    sectionWidth = 350;
+                    compIndex = ((currX - (fovX - (349)))/2 + (((currY - (fovY - (349)))/2) * sectionWidth)) + RGCoffset;
                 }
                 // Bottom Section
                 else {
-                    sectionWidth = 300;
+                    checkr = 4;
+                    sectionWidth = 350;
                     currentSum = (350 * 100) + (201 * 150);
-                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY + (150)))/2 * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY + (151)))/2 * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -130,7 +135,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
             }
 
             // Entering data
-            rgc[compIndex] = 4;
+            rgc[compIndex] = checkr;
         }
     }
     // ---------------------------------- X -----------------------------------
@@ -291,7 +296,7 @@ int visualPass1 (){
     cudaSetDevice(0);
     // cout << (int) hostTest[2] << endl;
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
-    cout << hostTest[189000] << endl;
+    cout << hostTest[190150] << endl;
 //    for(int i = 90000; i < 130000; i +=1){
 //        if(i%300 == 0) cout << endl;
 //        if (hostTest[i] <= 0.00) cout << ".";
