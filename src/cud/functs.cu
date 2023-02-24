@@ -59,27 +59,28 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
         // rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
     }
 
-        // Parafoveal Processing
+        // ---------------------- Parafoveal Processing --------------------
+
     else if (// Inner Perimeters
 
     // Left
-            ((currX <= (fovX - 149)) && (currX >= (fovX - (149 + 100))) && (currY >= (fovY - (149 + 100))) && (currY <= (fovY + (149 + 100)))) ||
+            ((currX <= (fovX - 149)) && (currX >= (fovX - (149 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY + (150 + 200)))) ||
             // Top
-                    ((currX >= (fovX - (149 + 100))) && (currX <= (fovX + (149 + 100))) && (currY >= (fovY - (149 + 100))) && (currY <= (fovY - 149))) ||
+                    ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (149 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY - 149))) ||
                     // Right
-                    ((currX >= (fovX + 149)) && (currX <= (fovX + (149 + 100))) && (currY >= (fovY - (149 + 100))) && (currY <= (fovY + (149 + 100)))) ||
+                    ((currX >= (fovX + 150)) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY + (150 + 200)))) ||
                     // Bottom
-                    ((currX >= (fovX - (149 + 100))) && (currX <= (fovX + (149 + 100))) && (currY >= (fovY + 149)) && (currY <= (fovY + (149 + 100))))){
+                    ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY + 150)) && (currY <= (fovY + (150 + 200))))){
 
         //rgc[90001] = 2;
         int RGCoffset = 90000;
         int sectionWidth = 0;
-        if (((currX >= (fovX - (149 + 100))) && (currX <= (fovX + (149 + 100))) && (currY >= (fovY - (149 + 100))) && (currY <= (fovY - 149))) ||
-                ((currX >= (fovX - (149 + 100))) && (currX <= (fovX + (149 + 100))) && (currY >= (fovY + 149)) && (currY <= (fovY + (149 + 100)))))
-            sectionWidth = 250;
-        else if (((currX <= (fovX - 149)) && (currX >= (fovX - (149 + 100))) && (currY >= (fovY - (149 + 100))) && (currY <= (fovY + (149 + 100)))) ||
-                ((currX >= (fovX + 149)) && (currX <= (fovX + (149 + 100))) && (currY >= (fovY - (149 + 100))) && (currY <= (fovY + (149 + 100)))) )
-            sectionWidth = 101;
+        int currentSum = 0;
+//        if (((currY >= (fovY - (149 + 200))) && (currY <= (fovY - 149))) ||
+//                ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY + 150)) && (currY <= (fovY + (149 + 200)))))
+//            sectionWidth = 350;
+//        else if ((currY >= (fovY - (149))) && (currY <= (fovY + (149))))
+//            sectionWidth = 201;
 
         float c1 = ((float)Y[i])/255;
         float c2 = ((0.125 * (float)Y[(i - frameW) - 1]) + (0.125 * (float)Y[(i - frameW)]) + (0.125 * (float)Y[(i - frameW) + 1]) +
@@ -88,11 +89,52 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
         float res  = c1 - c2;
         // rgc[90001] = 2;
         // The ParaComputationalUnits;
+        int compIndex = 0;
+
+        // Picking out units of computation
         if (((currX % 2) == (fovX % 2)) && ((currY % 2) == (fovY % 2))){
-            if (((currX - (fovX - (249)))/2 + ((currY - (fovY - (250))) * sectionWidth)) + RGCoffset == 90001) rgc[90001] = 89;
-            // rgc[((currX - (fovX - (249)))/2 + ((currY - (fovY - (250))) * sectionWidth)) + RGCoffset] = 42;
+
+            // To check if the current index is in the middle
+            if((currY >= (fovY - (149))) && (currY <= (fovY + (150)))){
+                sectionWidth = 201;
+                currentSum = 350 * 100;
+                int rightAdder = 100;
+
+                // -------------- Translating Indices ----------------
+                //Left Section
+                if(currX < fovX){
+                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY - (149)))/2 * sectionWidth)) + RGCoffset + currentSum;
+                }
+                // Right Section
+                else {
+                    compIndex = (rightAdder + (currX - (fovX + 150))/2 + ((currY - (fovY - (149)))/2 * sectionWidth)) + RGCoffset + currentSum;
+                }
+            }
+
+            // Checks if current index is in the top or bottom sections
+            else {
+                // Top Section
+                if(currY < fovY){
+                    sectionWidth = 300;
+                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY - (349)))/2 * sectionWidth)) + RGCoffset;
+                }
+                // Bottom Section
+                else {
+                    sectionWidth = 300;
+                    currentSum = (350 * 100) + (201 * 150);
+                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY + (150)))/2 * sectionWidth)) + RGCoffset + currentSum;
+                }
+
+                //--------------------------X--------------------------
+
+            }
+
+            // Entering data
+            rgc[compIndex] = 4;
         }
     }
+    // ---------------------------------- X -----------------------------------
+
 
         //Perifoveal Processing
     else if (
@@ -236,6 +278,298 @@ int visualPass1 (){
         formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, frame_width, Y_1, U_1, V_1, rgcCurrents);
         cudaSetDevice(1);
     }
+
+    cudaSetDevice(0);
+    cudaDeviceSynchronize();
+    cudaSetDevice(1);
+    cudaDeviceSynchronize();
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+    cout << "Net duration of visual pass : " << duration << endl;
+
+    cudaSetDevice(0);
+    // cout << (int) hostTest[2] << endl;
+    cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
+    cout << hostTest[189000] << endl;
+//    for(int i = 90000; i < 130000; i +=1){
+//        if(i%300 == 0) cout << endl;
+//        if (hostTest[i] <= 0.00) cout << ".";
+//        else if (hostTest[i] > 0.00) cout << "x" ;
+//
+//
+//    }
+
+
+
+//            cudaMemcpyAsync(frame->data[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
+// cout << "TestVal : " << (int) y1[2] << endl;
+
+    cudaFree(Y_1);
+//    cudaFree(Y_1);
+//    cudaFree(Y_2);
+
+
+}
+
+//int mrain(vector<vector<float>> &gcuArr)
+//{
+//
+//    visualPass1();
+//    int N = 1<<27;
+//    int deviceCount;
+//    cudaGetDeviceCount(&deviceCount);
+//    for(int i = 0; i < 4; i+=1){
+//        vector<float> temp(1<<27, 5);
+//        gcuArr.push_back(temp);
+//    }
+//    gcuArr[0][401] = 7.99;
+//    gcuArr[1][401] = 4;
+//    gcuArr[2][401] = 8;
+//    gcuArr[3][401] = 12.42;
+//    float *d_1, *d_2, *d_3, *d_4;
+//
+//    cudaStream_t stream1, stream2, stream3, stream4 ;
+//
+//    cudaSetDevice(0);
+//    cudaStreamCreate ( &stream1) ;
+//    cudaStreamCreate ( &stream3) ;
+//    cudaMalloc(&d_1, N*sizeof(float));
+//    cudaMalloc(&d_2, N*sizeof(float));
+//    cudaSetDevice(1);
+//    cudaStreamCreate(&stream2);
+//    cudaStreamCreate ( &stream4) ;
+//    cudaMalloc(&d_3, N*sizeof(float));
+//    cudaMalloc(&d_4, N*sizeof(float));
+//
+////    for (int i = 0; i < deviceCount; i ++){
+////        cudaSetDevice(i);
+////        cudaMalloc(&d_x, N*sizeof(float));
+////    }
+//
+//
+////    cudaStreamCreate(&stream2);
+////    cudaStreamCreate ( &stream3) ;
+////    cudaStreamCreate ( &stream4) ;
+//
+//
+//    cudaSetDevice(0);
+//    cudaMemcpyAsync(d_1, gcuArr[0].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream1);
+//    cudaMemcpyAsync(d_2, gcuArr[1].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream1);
+//    cudaDeviceSynchronize();
+//    cudaSetDevice(1);
+//    cudaMemcpyAsync(d_3, gcuArr[2].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream2);
+//    cudaMemcpyAsync(d_4, gcuArr[3].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream2);
+//    cudaDeviceSynchronize();
+//
+//
+//    auto start = std::chrono::high_resolution_clock::now();
+//
+//    for (int i = 0; i < 1000; i+=1){
+//        cudaSetDevice(0);
+//        saxpy<<<(N + 1023)/1024, 1024, 1024 * sizeof(double), stream1>>>(N, 2.0f, d_1, d_2);
+//        cudaSetDevice(1);
+//        saxpy<<<(N + 1023)/1024, 1024, 1024 * sizeof(double), stream2>>>(N, 2.0f, d_3, d_4);
+//        // cudaDeviceSynchronize();
+//    }
+//    cudaSetDevice(0);
+//    cudaDeviceSynchronize();
+//    cudaSetDevice(1);
+//    cudaDeviceSynchronize();
+//
+//    auto stop = std::chrono::high_resolution_clock::now();
+//    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+//    std::cout << "Time taken :         " << duration << endl;
+//
+//
+//    cudaSetDevice(0);
+//    cudaMemcpyAsync(gcuArr[0].data(), d_1, N*sizeof(float), cudaMemcpyDeviceToHost, stream1);
+//    cudaMemcpyAsync(gcuArr[1].data(), d_2, N*sizeof(float), cudaMemcpyDeviceToHost,stream1);
+//    cudaDeviceSynchronize();
+//    cudaSetDevice(1);
+//    cudaMemcpyAsync(gcuArr[2].data(), d_3, N*sizeof(float), cudaMemcpyDeviceToHost, stream2);
+//    cudaMemcpyAsync(gcuArr[3].data(), d_4, N*sizeof(float), cudaMemcpyDeviceToHost, stream2);
+//    cudaDeviceSynchronize();
+//
+//    cudaDeviceProp a{};
+//
+//    cudaGetDeviceProperties(&a, 0);
+//    cudaSetDevice(1);
+//    std::cout << "Number of devices :         " << deviceCount << endl;
+//    std::cout << "Device name :               " << a.name << endl;
+//    std::cout << "Test var 3 :                " << gcuArr[2][401] << endl;
+//
+//    float maxError = 0.0f;
+////    for (int i = 0; i < N; i++)
+////        maxError = max(maxError, abs(y[i]-4.0f));
+//    printf("Max error: %f\n", maxError);
+//
+//    cudaFree(d_1);
+//    cudaFree(d_2);
+//    cudaFree(d_3);
+//    cudaFree(d_4);
+//}
+//
+//int testFunct (){
+//    cudaProfilerStart();
+//    int N = 1 << 27;
+//    int deviceCount;
+//    cudaGetDeviceCount(&deviceCount);
+//    cout << N << endl;
+//
+//
+//
+//    float *aDest = (float*)malloc(N*sizeof(float));
+//    float *bDest = (float*)malloc(N*sizeof(float));
+//    float *cDest = (float*)malloc(N*sizeof(float));
+//    float *dDest = (float*)malloc(N*sizeof(float));
+//    float *aHost = (float*)malloc(N*sizeof(float));
+//    float *bHost = (float*)malloc(N*sizeof(float));
+//    float *cHost = (float*)malloc(N*sizeof(float));
+//    float *dHost = (float*)malloc(N*sizeof(float));
+////    vector<float[] > trial, hostMem;
+////    trial.push_back(aDest); trial.push_back(bDest);
+////    hostMem.push_back(aHost); hostMem.push_back(bHost);
+//    vector<cudaStream_t> memStream, functStream;
+//
+//    cudaMallocHost((void**)&aHost, N*sizeof(float));
+//    cudaMallocHost((void**)&bHost, N*sizeof(float));
+//    cudaMallocHost((void**)&cHost, N*sizeof(float));
+//    cudaMallocHost((void**)&dHost, N*sizeof(float));
+//    for(int i = 0; i < N; i+=1){
+//        aDest[i] =  i;
+//        bDest[i] =  (i - 2);
+//        cDest[i] =  i;
+//        dDest[i] =  (i - 2);
+//        aHost[i] =  2;
+//        bHost[i] =  67.83;
+//        cHost[i] =  2;
+//        dHost[i] =  67.83;
+//    }
+//
+//
+//    cudaStream_t stream1, stream2, stream3, stream4;
+//    for (int i = 0; i < deviceCount; i+=1){
+//        cudaStream_t temp;
+//        memStream.push_back(temp);
+//        cudaStream_t temp1;
+//        functStream.push_back(temp1);
+//        cudaSetDevice(i);
+//        cudaStreamCreate(&memStream[i]);
+//        cudaStreamCreate(&functStream[i]);
+//    }
+//    cudaSetDevice(0);
+//    cudaStreamCreate(&stream1);
+//    cudaStreamCreate(&stream3);
+//    cudaMalloc(&aDest, N * sizeof(float));
+//    cudaMalloc(&bDest, N * sizeof(float));
+//    cudaSetDevice(1);
+//    cudaStreamCreate(&stream2);
+//    cudaStreamCreate(&stream4);
+//    cudaMalloc(&cDest, N * sizeof(float));
+//    cudaMalloc(&dDest, N * sizeof(float));
+//
+//
+//    auto start = std::chrono::high_resolution_clock::now();
+////    std::vector<std::thread> threads;
+////
+////    for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
+////    {
+////        threads.push_back (std::thread ([&,device_id] () {
+////            cudaSetDevice (device_id);
+////            if(device_id == 0){
+////                for(int i = 0; i < 1000; i +=1){
+////                    if((i % 36 == 1) || (i == 1)) {
+////              cudaMemcpyAsync(bDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[0]);
+////              cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[0]);
+////                    }
+////              eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[0]>>>(0, 0, aDest, bDest);
+////                    // cudaStreamSynchronize(stream3);
+////                }
+////
+////                // cudaDeviceSynchronize();
+////                // cudaMemcpyAsync(frameStorage[4], oneGuy, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost, stream1);
+////                // cudaStreamSynchronize(stream1);
+////            } else if(device_id == 1){
+////                for(int i = 0; i < 1000; i +=1){
+////                    if((i % 36 == 1) || (i == 1)) {
+////                cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[1]);
+////                //cudaMemcpyAsync(dDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[1]);
+////                    }
+////                    // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream4>>>(0, numOfPixels, Y_2,U_2);
+////                    // cudaStreamSynchronize(stream4);
+////                }
+////            }
+////        }));
+////    }
+////    for (auto &thread: threads)
+////        thread.join ();
+//
+//    for(int i = 0; i < 2; i++){
+//        cudaSetDevice(0);
+//        cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
+//        cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
+//        cudaSetDevice(1);
+//        cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
+//        // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
+//
+////        cudaStreamSynchronize(stream1);
+////        cudaStreamSynchronize(stream2);
+////        cudaStreamSynchronize(stream3);
+////        cudaStreamSynchronize(stream4);
+////        cudaSetDevice(0);
+////        eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[0]>>>(0, 0, aDest, bDest);
+////        cudaSetDevice(1);
+////        eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[1]>>>(0, 0, cDest, dDest);
+//
+//    }
+////#pragma omp parallel for num_threads(2)
+////    for(int i = 0; i < 2; i++){
+////        cudaSetDevice(i);
+////        if(i == 0) {
+////            for(int j = 0; j < 2; j++){
+////                cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
+////                cudaMemcpyAsync(bDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
+////            }
+////        } else if(i == 1){
+////            for(int j = 0; j < 2; j++){
+////                cudaMemcpyAsync(cDest, cHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
+////                // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
+////            }
+////        }
+////
+////    }
+//
+////    cudaStreamSynchronize(stream1);
+////    cudaStreamSynchronize(stream2);
+////    cudaStreamSynchronize(stream3);
+////    cudaStreamSynchronize(stream4);
+//
+//
+//    auto stop = std::chrono::high_resolution_clock::now();
+//    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+//    cout << "Net duration of visual pass : " << duration << endl;
+//
+////    cout << aHost[2] << endl;
+////    cudaSetDevice(0);
+////    cudaMemcpyAsync(aHost, aDest, N* sizeof(float), cudaMemcpyDeviceToHost, stream1);
+////    cudaMemcpyAsync(bHost, bDest, N* sizeof(float), cudaMemcpyDeviceToHost, stream1);
+////    cudaStreamSynchronize(stream1);
+////
+////    cout << aHost[2] << endl;
+//
+////    cudaFreeHost(aHost);
+////    cudaFreeHost(bHost);
+////    cudaFreeHost(cHost);
+////    cudaFreeHost(dHost);
+//    cudaFree(aDest);
+//    cudaFree(bDest);
+//    cudaProfilerStop();
+//    cudaDeviceReset();
+//}
+
+// ---------------- Rough Pad ------------------------
+
 //    for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
 //    {
 //        threads.push_back (std::thread ([&,device_id] () {
@@ -319,291 +653,3 @@ int visualPass1 (){
 ////        }
 //
 //    }
-    cudaSetDevice(0);
-    cudaDeviceSynchronize();
-    cudaSetDevice(1);
-    cudaDeviceSynchronize();
-
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-    cout << "Net duration of visual pass : " << duration << endl;
-
-    cudaSetDevice(0);
-    // cout << (int) hostTest[2] << endl;
-    cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
-    cout << hostTest[90001] << endl;
-//    for(int i = 90000; i < 130000; i +=1){
-//        if(i%300 == 0) cout << endl;
-//        if (hostTest[i] <= 0.00) cout << ".";
-//        else if (hostTest[i] > 0.00) cout << "x" ;
-//
-//
-//    }
-
-
-
-//            cudaMemcpyAsync(frame->data[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
-// cout << "TestVal : " << (int) y1[2] << endl;
-
-    cudaFree(Y_1);
-//    cudaFree(Y_1);
-//    cudaFree(Y_2);
-
-
-}
-
-int mrain(vector<vector<float>> &gcuArr)
-{
-
-    visualPass1();
-    int N = 1<<27;
-    int deviceCount;
-    cudaGetDeviceCount(&deviceCount);
-    for(int i = 0; i < 4; i+=1){
-        vector<float> temp(1<<27, 5);
-        gcuArr.push_back(temp);
-    }
-    gcuArr[0][401] = 7.99;
-    gcuArr[1][401] = 4;
-    gcuArr[2][401] = 8;
-    gcuArr[3][401] = 12.42;
-    float *d_1, *d_2, *d_3, *d_4;
-
-    cudaStream_t stream1, stream2, stream3, stream4 ;
-
-    cudaSetDevice(0);
-    cudaStreamCreate ( &stream1) ;
-    cudaStreamCreate ( &stream3) ;
-    cudaMalloc(&d_1, N*sizeof(float));
-    cudaMalloc(&d_2, N*sizeof(float));
-    cudaSetDevice(1);
-    cudaStreamCreate(&stream2);
-    cudaStreamCreate ( &stream4) ;
-    cudaMalloc(&d_3, N*sizeof(float));
-    cudaMalloc(&d_4, N*sizeof(float));
-
-//    for (int i = 0; i < deviceCount; i ++){
-//        cudaSetDevice(i);
-//        cudaMalloc(&d_x, N*sizeof(float));
-//    }
-
-
-//    cudaStreamCreate(&stream2);
-//    cudaStreamCreate ( &stream3) ;
-//    cudaStreamCreate ( &stream4) ;
-
-
-    cudaSetDevice(0);
-    cudaMemcpyAsync(d_1, gcuArr[0].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream1);
-    cudaMemcpyAsync(d_2, gcuArr[1].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream1);
-    cudaDeviceSynchronize();
-    cudaSetDevice(1);
-    cudaMemcpyAsync(d_3, gcuArr[2].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream2);
-    cudaMemcpyAsync(d_4, gcuArr[3].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream2);
-    cudaDeviceSynchronize();
-
-
-    auto start = std::chrono::high_resolution_clock::now();
-
-    for (int i = 0; i < 1000; i+=1){
-        cudaSetDevice(0);
-        saxpy<<<(N + 1023)/1024, 1024, 1024 * sizeof(double), stream1>>>(N, 2.0f, d_1, d_2);
-        cudaSetDevice(1);
-        saxpy<<<(N + 1023)/1024, 1024, 1024 * sizeof(double), stream2>>>(N, 2.0f, d_3, d_4);
-        // cudaDeviceSynchronize();
-    }
-    cudaSetDevice(0);
-    cudaDeviceSynchronize();
-    cudaSetDevice(1);
-    cudaDeviceSynchronize();
-
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-    std::cout << "Time taken :         " << duration << endl;
-
-
-    cudaSetDevice(0);
-    cudaMemcpyAsync(gcuArr[0].data(), d_1, N*sizeof(float), cudaMemcpyDeviceToHost, stream1);
-    cudaMemcpyAsync(gcuArr[1].data(), d_2, N*sizeof(float), cudaMemcpyDeviceToHost,stream1);
-    cudaDeviceSynchronize();
-    cudaSetDevice(1);
-    cudaMemcpyAsync(gcuArr[2].data(), d_3, N*sizeof(float), cudaMemcpyDeviceToHost, stream2);
-    cudaMemcpyAsync(gcuArr[3].data(), d_4, N*sizeof(float), cudaMemcpyDeviceToHost, stream2);
-    cudaDeviceSynchronize();
-
-    cudaDeviceProp a{};
-
-    cudaGetDeviceProperties(&a, 0);
-    cudaSetDevice(1);
-    std::cout << "Number of devices :         " << deviceCount << endl;
-    std::cout << "Device name :               " << a.name << endl;
-    std::cout << "Test var 3 :                " << gcuArr[2][401] << endl;
-
-    float maxError = 0.0f;
-//    for (int i = 0; i < N; i++)
-//        maxError = max(maxError, abs(y[i]-4.0f));
-    printf("Max error: %f\n", maxError);
-
-    cudaFree(d_1);
-    cudaFree(d_2);
-    cudaFree(d_3);
-    cudaFree(d_4);
-}
-
-int testFunct (){
-    cudaProfilerStart();
-    int N = 1 << 27;
-    int deviceCount;
-    cudaGetDeviceCount(&deviceCount);
-    cout << N << endl;
-
-
-
-    float *aDest = (float*)malloc(N*sizeof(float));
-    float *bDest = (float*)malloc(N*sizeof(float));
-    float *cDest = (float*)malloc(N*sizeof(float));
-    float *dDest = (float*)malloc(N*sizeof(float));
-    float *aHost = (float*)malloc(N*sizeof(float));
-    float *bHost = (float*)malloc(N*sizeof(float));
-    float *cHost = (float*)malloc(N*sizeof(float));
-    float *dHost = (float*)malloc(N*sizeof(float));
-//    vector<float[] > trial, hostMem;
-//    trial.push_back(aDest); trial.push_back(bDest);
-//    hostMem.push_back(aHost); hostMem.push_back(bHost);
-    vector<cudaStream_t> memStream, functStream;
-
-    cudaMallocHost((void**)&aHost, N*sizeof(float));
-    cudaMallocHost((void**)&bHost, N*sizeof(float));
-    cudaMallocHost((void**)&cHost, N*sizeof(float));
-    cudaMallocHost((void**)&dHost, N*sizeof(float));
-    for(int i = 0; i < N; i+=1){
-        aDest[i] =  i;
-        bDest[i] =  (i - 2);
-        cDest[i] =  i;
-        dDest[i] =  (i - 2);
-        aHost[i] =  2;
-        bHost[i] =  67.83;
-        cHost[i] =  2;
-        dHost[i] =  67.83;
-    }
-
-
-    cudaStream_t stream1, stream2, stream3, stream4;
-    for (int i = 0; i < deviceCount; i+=1){
-        cudaStream_t temp;
-        memStream.push_back(temp);
-        cudaStream_t temp1;
-        functStream.push_back(temp1);
-        cudaSetDevice(i);
-        cudaStreamCreate(&memStream[i]);
-        cudaStreamCreate(&functStream[i]);
-    }
-    cudaSetDevice(0);
-    cudaStreamCreate(&stream1);
-    cudaStreamCreate(&stream3);
-    cudaMalloc(&aDest, N * sizeof(float));
-    cudaMalloc(&bDest, N * sizeof(float));
-    cudaSetDevice(1);
-    cudaStreamCreate(&stream2);
-    cudaStreamCreate(&stream4);
-    cudaMalloc(&cDest, N * sizeof(float));
-    cudaMalloc(&dDest, N * sizeof(float));
-
-
-    auto start = std::chrono::high_resolution_clock::now();
-//    std::vector<std::thread> threads;
-//
-//    for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
-//    {
-//        threads.push_back (std::thread ([&,device_id] () {
-//            cudaSetDevice (device_id);
-//            if(device_id == 0){
-//                for(int i = 0; i < 1000; i +=1){
-//                    if((i % 36 == 1) || (i == 1)) {
-//              cudaMemcpyAsync(bDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[0]);
-//              cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[0]);
-//                    }
-//              eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[0]>>>(0, 0, aDest, bDest);
-//                    // cudaStreamSynchronize(stream3);
-//                }
-//
-//                // cudaDeviceSynchronize();
-//                // cudaMemcpyAsync(frameStorage[4], oneGuy, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost, stream1);
-//                // cudaStreamSynchronize(stream1);
-//            } else if(device_id == 1){
-//                for(int i = 0; i < 1000; i +=1){
-//                    if((i % 36 == 1) || (i == 1)) {
-//                cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[1]);
-//                //cudaMemcpyAsync(dDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[1]);
-//                    }
-//                    // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream4>>>(0, numOfPixels, Y_2,U_2);
-//                    // cudaStreamSynchronize(stream4);
-//                }
-//            }
-//        }));
-//    }
-//    for (auto &thread: threads)
-//        thread.join ();
-
-    for(int i = 0; i < 2; i++){
-        cudaSetDevice(0);
-        cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
-        cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
-        cudaSetDevice(1);
-        cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
-        // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
-
-//        cudaStreamSynchronize(stream1);
-//        cudaStreamSynchronize(stream2);
-//        cudaStreamSynchronize(stream3);
-//        cudaStreamSynchronize(stream4);
-//        cudaSetDevice(0);
-//        eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[0]>>>(0, 0, aDest, bDest);
-//        cudaSetDevice(1);
-//        eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[1]>>>(0, 0, cDest, dDest);
-
-    }
-//#pragma omp parallel for num_threads(2)
-//    for(int i = 0; i < 2; i++){
-//        cudaSetDevice(i);
-//        if(i == 0) {
-//            for(int j = 0; j < 2; j++){
-//                cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
-//                cudaMemcpyAsync(bDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
-//            }
-//        } else if(i == 1){
-//            for(int j = 0; j < 2; j++){
-//                cudaMemcpyAsync(cDest, cHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
-//                // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
-//            }
-//        }
-//
-//    }
-
-//    cudaStreamSynchronize(stream1);
-//    cudaStreamSynchronize(stream2);
-//    cudaStreamSynchronize(stream3);
-//    cudaStreamSynchronize(stream4);
-
-
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-    cout << "Net duration of visual pass : " << duration << endl;
-
-//    cout << aHost[2] << endl;
-//    cudaSetDevice(0);
-//    cudaMemcpyAsync(aHost, aDest, N* sizeof(float), cudaMemcpyDeviceToHost, stream1);
-//    cudaMemcpyAsync(bHost, bDest, N* sizeof(float), cudaMemcpyDeviceToHost, stream1);
-//    cudaStreamSynchronize(stream1);
-//
-//    cout << aHost[2] << endl;
-
-//    cudaFreeHost(aHost);
-//    cudaFreeHost(bHost);
-//    cudaFreeHost(cHost);
-//    cudaFreeHost(dHost);
-    cudaFree(aDest);
-    cudaFree(bDest);
-    cudaProfilerStop();
-    cudaDeviceReset();
-}
