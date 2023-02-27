@@ -335,15 +335,15 @@ int visualPass1 (){
 //            cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
         }
         if(i%36 == 35){
-            cudaStreamSynchronize(funcStream1);
-            cudaStreamSynchronize(funcStream2);
-            cudaStreamSynchronize(memStream1);
-            cudaStreamSynchronize(memStream2);
+            cudaSetDevice(0);
+            cudaDeviceSynchronize();
+            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, frame_width, Y_1, U_1, V_1, rgcCurrents);
+            cudaDeviceSynchronize();
         }
-        cudaSetDevice(0);
+
         // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(0, numOfPixels, Y_1, U_1);
-        formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, frame_width, Y_1, U_1, V_1, rgcCurrents);
-        cudaSetDevice(1);
+
+        // cudaSetDevice(1);
     }
 
     cudaSetDevice(0);
