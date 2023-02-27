@@ -31,7 +31,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
 
     /* Here we aim to divide i into different retinal compartments
      * Fovea - 300 x 300 || Total RGCs are 90,000
-     * Parafovea - 200 plus on all sides || Total RGCs are 100,000
+     * Parafovea - 200 plus on all sides || Total RGCs are 100,150
      * Perifovea - 300 plus on all sides || Total RGCs are 133,200
      * */
 
@@ -41,36 +41,36 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
     int currX = i - (currY * frameW);
     // rgc[i] = 2;
 
-    // Fovea Processing
+    // ----------------------- Foveal Processing -----------------------
     if((currX >= fovX - 149) && (currY >= fovY - 149) && (currX <= fovX + 150) && (currY <= fovY + 150)){
         // rgc[2] = 1;
         int RGCoffset = 0;
         int sectionWidth = 300;
         float c1 = ((float)Y[i])/255;
         float c2 = ((0.125 * (float)Y[(i - frameW) - 1]) + (0.125 * (float)Y[(i - frameW)]) + (0.125 * (float)Y[(i - frameW) + 1]) +
-                           (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
-                           (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]))/255;
+                    (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
+                    (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]))/255;
         float res  = c1 - c2;
         if(res < 0) res = 0;
 
         // Converting from 2D modelled frame to linear RGC array
-        rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = res;
+        rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = ((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth));
 
         // rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
     }
 
         // ---------------------- Parafoveal Processing --------------------
 
-    else if (// Inner Perimeters
+    if (// Inner Perimeters
 
-    // Left
+        // Left
             ((currX <= (fovX - 149)) && (currX >= (fovX - (149 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY + (150 + 200)))) ||
             // Top
-                    ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY - 149))) ||
-                    // Right
-                    ((currX >= (fovX + 150)) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY + (150 + 200)))) ||
-                    // Bottom
-                    ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY + 150)) && (currY <= (fovY + (150 + 200))))){
+            ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY - 149))) ||
+            // Right
+            ((currX >= (fovX + 150)) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY + (150 + 200)))) ||
+            // Bottom
+            ((currX >= (fovX - (149 + 200))) && (currX <= (fovX + (150 + 200))) && (currY >= (fovY + 150)) && (currY <= (fovY + (150 + 200))))){
 
         //rgc[90001] = 2;
         int RGCoffset = 90000;
@@ -97,79 +97,6 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
 
             // To check if the current index is in the middle
             if((currY >= (fovY - (149))) && (currY <= (fovY + (150)))){
-                sectionWidth = 201;
-                currentSum = 350 * 100;
-                int rightAdder = 100;
-
-                // -------------- Translating Indices ----------------
-                //Left Section
-                if(currX < fovX){
-                    checkr = 1;
-                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY - (149)))/2 * sectionWidth)) + RGCoffset + currentSum;
-                }
-                // Right Section
-                else {
-                    checkr = 2;
-                    compIndex = (rightAdder + (currX - (fovX + 150))/2 + ((currY - (fovY - (149)))/2 * sectionWidth)) + RGCoffset + currentSum;
-                }
-            }
-
-            // Checks if current index is in the top or bottom sections
-            else {
-                // Top Section
-                if(currY < fovY){
-                    checkr = 3;
-                    sectionWidth = 350;
-                    compIndex = ((currX - (fovX - (349)))/2 + (((currY - (fovY - (349)))/2) * sectionWidth)) + RGCoffset;
-                }
-                // Bottom Section
-                else {
-                    checkr = 4;
-                    sectionWidth = 350;
-                    currentSum = (350 * 100) + (201 * 150);
-                    compIndex = ((currX - (fovX - (349)))/2 + ((currY - (fovY + (151)))/2 * sectionWidth)) + RGCoffset + currentSum;
-                }
-
-                //--------------------------X--------------------------
-
-            }
-
-            // Entering data
-            rgc[compIndex] = checkr;
-        }
-    }
-    // ---------------------------------- X -----------------------------------
-
-
-        //Perifoveal Processing
-    else if (// Inner Perimeters
-
-        // Left
-            ((currX <= (fovX - (149 + 200))) && (currX >= (fovX - (149 + 200 + 300))) && (currY >= (fovY - (149 + 200 + 300))) && (currY <= (fovY + (150 + 200 + 300)))) ||
-            // Top
-            ((currX >= (fovX - (149 + 200 + 300))) && (currX <= (fovX + (150 + 200 + 300))) && (currY >= (fovY - (149 + 200))) && (currY <= (fovY - 149))) ||
-            // Right
-            ((currX >= (fovX + 150 + 200)) && (currX <= (fovX + (150 + 200 + 300))) && (currY >= (fovY - (149 + 200 + 300))) && (currY <= (fovY + (150 + 200 + 300)))) ||
-            // Bottom
-            ((currX >= (fovX - (149 + 200 + 300))) && (currX <= (fovX + (150 + 200 + 300))) && (currY >= (fovY + 150 + 200)) && (currY <= (fovY + (150 + 200 + 300))))){
-        int RGCoffset = 90000;
-        int sectionWidth = 0;
-        int currentSum = 0;
-        int checkr = 0;
-
-        float c1 = (0.25 * (((float)Y[i])/255)) + (0.25 * (((float)Y[i + 1])/255)) + (0.25 * (((float)Y[i + frameW])/255)) + (0.25 * (((float)Y[i + frameW + 1])/255));
-        float c2 = ((0.08 * (float)Y[(i - frameW) - 1]) + (0.08 * (float)Y[(i - frameW)]) + (0.08 * (float)Y[(i - frameW) + 1]) + (0.08 * (float)Y[(i - frameW) + 1]) + (0.08 * (float)Y[(i - frameW) + 2]) +
-                    (0.08 * (float)Y[(i) - 1]) + (0.08 * (float)Y[(i) + 2]) + (0.08 * (float)Y[(i) + frameW - 1]) + (0.08 * (float)Y[(i) + frameW + 2]) +
-                    (0.08 * (float)Y[(i + (2 * frameW)) - 1]) + (0.08 * (float)Y[(i + (2 * frameW))]) + (0.08 * (float)Y[(i + (2 * frameW)) + 1]) + (0.08 * (float)Y[(i + (2 * frameW)) + 1]))/255;
-        float res  = c1 - c2;
-
-        int compIndex = 0;
-
-        // Picking out units of computation
-        if (((currX % 2) != (fovX % 2)) && ((currY % 2) != (fovY % 2))){
-
-            // To check if the current index is in the middle
-            if((currY >= (fovY - (149 + 200))) && (currY <= (fovY + (150 + 200)))){
                 sectionWidth = 201;
                 currentSum = 350 * 100;
                 int rightAdder = 100;
@@ -208,7 +135,80 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
             }
 
             // Entering data
-            rgc[compIndex] = checkr;
+            rgc[compIndex] = compIndex;
+        }
+    }
+        // ---------------------------------- X -----------------------------------
+
+
+        //------------------------ Perifoveal Processing -------------------------
+    if (// Inner Perimeters
+
+        // Left
+            ((currX <= (fovX - (149 + 200))) && (currX >= (fovX - (149 + 200 + 300))) && (currY >= (fovY - (149 + 200 + 300))) && (currY <= (fovY + (150 + 200 + 300)))) ||
+            // Top
+            ((currX >= (fovX - (149 + 200 + 300))) && (currX <= (fovX + (150 + 200 + 300))) && (currY >= (fovY - (149 + 200 + 300))) && (currY <= (fovY - (149 + 200)))) ||
+            // Right
+            ((currX >= (fovX + 150 + 200)) && (currX <= (fovX + (150 + 200 + 300))) && (currY >= (fovY - (149 + 200 + 300))) && (currY <= (fovY + (150 + 200 + 300)))) ||
+            // Bottom
+            ((currX >= (fovX - (149 + 200 + 300))) && (currX <= (fovX + (150 + 200 + 300))) && (currY >= (fovY + 150 + 200)) && (currY <= (fovY + (150 + 200 + 300))))){
+        int RGCoffset = 190150;
+        int sectionWidth = 0;
+        int currentSum = 0;
+        int checkr = 0;
+
+        float c1 = (0.25 * (((float)Y[i])/255)) + (0.25 * (((float)Y[i + 1])/255)) + (0.25 * (((float)Y[i + frameW])/255)) + (0.25 * (((float)Y[i + frameW + 1])/255));
+        float c2 = ((0.08 * (float)Y[(i - frameW) - 1]) + (0.08 * (float)Y[(i - frameW)]) + (0.08 * (float)Y[(i - frameW) + 1]) + (0.08 * (float)Y[(i - frameW) + 1]) + (0.08 * (float)Y[(i - frameW) + 2]) +
+                    (0.08 * (float)Y[(i) - 1]) + (0.08 * (float)Y[(i) + 2]) + (0.08 * (float)Y[(i) + frameW - 1]) + (0.08 * (float)Y[(i) + frameW + 2]) +
+                    (0.08 * (float)Y[(i + (2 * frameW)) - 1]) + (0.08 * (float)Y[(i + (2 * frameW))]) + (0.08 * (float)Y[(i + (2 * frameW)) + 1]) + (0.08 * (float)Y[(i + (2 * frameW)) + 1]))/255;
+        float res  = c1 - c2;
+
+        int compIndex = 0;
+
+        // Picking out units of computation
+        if (((currX - (fovX - 649)) % 3 == 1) && ((currY - (fovY - 649)) % 3 == 1)){
+
+            // To check if the current index is in the middle
+            if((currY >= (fovY - (149 + 200))) && (currY <= (fovY + (150 + 200)))){
+                sectionWidth = 200;
+                currentSum = 433 * 100;
+                int rightAdder = 100;
+
+                // -------------- Translating Indices ----------------
+                //Left Section
+                if(currX < fovX){
+                    checkr = 1;
+                    compIndex = (((currX - (fovX - (649))))/3 + (((currY - (fovY - (349))))/3 * sectionWidth)) + RGCoffset + currentSum;
+                }
+                    // Right Section
+                else {
+                    checkr = 2;
+                    compIndex = (rightAdder + ((currX - (fovX + 350)))/3 + (((currY - (fovY - (349))))/3 * sectionWidth)) + RGCoffset + currentSum;
+                }
+            }
+
+                // Checks if current index is in the top or bottom sections
+            else {
+                // Top Section
+                if(currY < fovY){
+                    checkr = 3;
+                    sectionWidth = 433;
+                    compIndex = (((currX - (fovX - (649))))/3 + ((((currY - (fovY - (649))))/3) * sectionWidth)) + RGCoffset;
+                }
+                    // Bottom Section
+                else {
+                    checkr = 4;
+                    sectionWidth = 433;
+                    currentSum = (433 * 100) + (200 * 233);
+                    compIndex = (((currX - (fovX - (649))))/3 + (((currY - (fovY + (350))))/3 * sectionWidth)) + RGCoffset + currentSum;
+                }
+
+                //--------------------------X--------------------------
+
+            }
+
+            // Entering data
+            rgc[compIndex] = compIndex;
         }
     }
 
@@ -358,14 +358,12 @@ int visualPass1 (){
     cudaSetDevice(0);
     // cout << (int) hostTest[2] << endl;
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
-    cout << hostTest[190149] << endl;
-//    for(int i = 90000; i < 130000; i +=1){
-//        if(i%300 == 0) cout << endl;
-//        if (hostTest[i] <= 0.00) cout << ".";
-//        else if (hostTest[i] > 0.00) cout << "x" ;
-//
-//
-//    }
+    // cout << hostTest[125100] << endl;
+    for(int i = 0; i < 323350; i +=1){
+        if(hostTest[i] != i){
+            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
+        }
+    }
 
 
 
