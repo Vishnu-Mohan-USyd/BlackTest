@@ -25,7 +25,7 @@ void saxpy(int n, float a, float *x, float *y)
 }
 
 __global__
-void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uint8_t  *Y, ::uint8_t *U, ::uint8_t *V, float *rgc)
+void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL, int perL, int frameW, ::uint8_t  *Y, ::uint8_t *U, ::uint8_t *V, float *rgc, float *rgcTestr, char *rgcLay)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -41,9 +41,9 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
     int currX = i - (currY * frameW);
     // rgc[i] = 2;
 
-    int fovWidth = 300; int fovWidthMidPre = ((fovWidth / 2) - 1); int fovWidthMidPost = (fovWidth / 2);
-    int paraLength = 200;
-    int periLength = 300;
+    int fovWidth = fW; int fovWidthMidPre = ((fovWidth / 2) - 1); int fovWidthMidPost = (fovWidth / 2);
+    int paraLength = parL;
+    int periLength = perL;
 
 
     // ----------------------- Foveal Processing -----------------------
@@ -64,7 +64,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
         // rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
     }
 
-        // ---------------------- Parafoveal Processing --------------------
+    // ---------------------- Parafoveal Processing --------------------
 
     if (// Inner Perimeters
 
@@ -78,7 +78,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
             ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY + fovWidthMidPost)) && (currY <= (fovY + (fovWidthMidPost + paraLength))))){
 
         //rgc[90001] = 2;
-        int RGCoffset = 90000;
+        int RGCoffset = fovWidth * fovWidth;
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
@@ -143,10 +143,10 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int frameW, ::uin
             rgc[compIndex] = compIndex;
         }
     }
-        // ---------------------------------- X -----------------------------------
+    // ---------------------------------- X -----------------------------------
 
 
-        //------------------------ Perifoveal Processing -------------------------
+    //------------------------ Perifoveal Processing -------------------------
     if (// Inner Perimeters
 
         // Left
@@ -243,7 +243,7 @@ int visualPass1 (){
 
     // Video processing parameters
     VideoReaderState vr_state;
-    if (!video_reader_open(&vr_state, "/home/kasm-user/CLionProjects/BlackTest7/src/cud/sing.mp4")) {
+    if (!video_reader_open(&vr_state, "/home/kasm-user/CLionProjects/BlackTest/src/cud/sing.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
     }
@@ -253,6 +253,13 @@ int visualPass1 (){
     const int frame_width = vr_state.width;
     const int frame_height = vr_state.height;
     int numOfPixels = frame_width * frame_height;
+
+
+    int foveaWidth = 300;
+    int paraLength = 200;
+    int periLength = 300;
+
+
     uint8_t* frame_data;
     cout << frame_height << endl;
     printf("\x1B[34m                         \tWidth : \033[0m"); cout << frame_width << endl;
@@ -264,8 +271,11 @@ int visualPass1 (){
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
-    float *rgcCurrents, *hostTest;
+    float *rgcCurrents, *hostTest, *rgcTests, *hostRGCTests;
+    char *rgcLayout, *layoutTest;
     hostTest = (float*)malloc(numOfPixels*sizeof(float));
+    hostRGCTests = (float*)malloc(numOfPixels*sizeof(float));
+    layoutTest = (char*)malloc(numOfPixels*sizeof(char));
     ::uint8_t *Y_1, *U_1, *V_1;
     ::uint8_t *frameHolderHost, *pinnedTemp;
 
@@ -282,12 +292,21 @@ int visualPass1 (){
     cudaStreamCreate ( &funcStream1) ;
     cudaMalloc(&Y_1, numOfPixels*sizeof(::uint8_t));
     cudaMalloc(&rgcCurrents, numOfPixels*sizeof(float)); // RGC Currents are held here
+    cudaMalloc(&rgcTests, numOfPixels*sizeof(float)); // RGC Indexes are held here
+    cudaMalloc(&rgcLayout, numOfPixels*sizeof(char )); // RGC Layouts are held here
     // cudaMalloc(&frameHolderHost, numOfPixels*sizeof(float ));
     cudaMalloc(&U_1, numOfPixels*sizeof(::uint8_t));
     cudaMalloc(&V_1, numOfPixels*sizeof(::uint8_t));
     cudaSetDevice(1);
     cudaStreamCreate(&memStream2);
     cudaStreamCreate ( &funcStream2);
+
+    // RGC Layout Creation
+
+    for (int i = 0; i < 1000000; i+=1){
+
+
+    }
 
     // Begin main loop
 
@@ -298,6 +317,8 @@ int visualPass1 (){
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
     cudaMallocHost((void**)&frameHolderHost, bytes);
     cudaMallocHost((void**)&hostTest, numOfPixels * sizeof(float));
+    cudaMallocHost((void**)&hostRGCTests, numOfPixels * sizeof(float));
+    cudaMallocHost((void**)&layoutTest, numOfPixels * sizeof(float));
     vector<::uint8_t *> frameStorage;
     for (int fr = 0; fr < 9 ; fr+=1){
         frame = video_reader_read_frame(&vr_state, frame_data, &pts);
@@ -342,7 +363,7 @@ int visualPass1 (){
         if(i%36 == 35){
             cudaSetDevice(0);
             cudaDeviceSynchronize();
-            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, frame_width, Y_1, U_1, V_1, rgcCurrents);
+            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, foveaWidth, paraLength, periLength, frame_width, Y_1, U_1, V_1, rgcCurrents, rgcTests, rgcLayout);
             cudaDeviceSynchronize();
         }
 
@@ -363,6 +384,7 @@ int visualPass1 (){
     cudaSetDevice(0);
     // cout << (int) hostTest[2] << endl;
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hostRGCTests, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cout << hostTest[125176] << endl;
     for(int i = 0; i < 323350; i +=1){
         if(hostTest[i] != i){
