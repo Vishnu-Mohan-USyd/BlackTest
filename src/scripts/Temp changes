@@ -217,6 +217,9 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         }
     }
 
+    // ------------------------------------------ OZ1 processing ---------------------------------------
+
+
 
 
 }
@@ -258,6 +261,13 @@ int visualPass1 (){
     int foveaWidth = 300;
     int paraLength = 200;
     int periLength = 300;
+    int oz1up = 500;
+    int oz1side = 1000;
+    int oz2up = 1000;
+    int oz2side = 2000;
+    int oz3up = 1500;
+    int oz3side = 3000;
+
 
 
     uint8_t* frame_data;
