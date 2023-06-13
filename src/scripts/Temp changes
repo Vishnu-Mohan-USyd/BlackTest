@@ -227,11 +227,11 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     if (// Inner Perimeters
 
         // Left
-            ((currX <= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
+            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX > (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
             // Top
             ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY - (fovWidthMidPre + paraLength  + periLength)))) ||
             // Right
-            ((currX >= (fovX + fovWidthMidPost + paraLength + periLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
+            ((currX > (fovX + fovWidthMidPost + paraLength + periLength)) && (currX < (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
             // Bottom
             ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY + fovWidthMidPost + paraLength + periLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up))))){
 
@@ -242,14 +242,59 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
 
         float c1 = (0.25 * (((float)Y[i])/255)) + (0.25 * (((float)Y[i + 1])/255)) + (0.25 * (((float)Y[i + frameW])/255)) + (0.25 * (((float)Y[i + frameW + 1])/255));
         float c2 = ((0.03 * (float)Y[(i - (2 * frameW)) - 2]) + (0.03 * (float)Y[(i - (2 * frameW)) - 1]) + (0.03 * (float)Y[(i - (2 * frameW))]) + (0.03 * (float)Y[(i - (2 * frameW)) + 1]) + (0.03 * (float)Y[(i - (2 * frameW)) + 2]) + (0.03 * (float)Y[(i - (2 * frameW)) + 3]) +
-                (0.03 * (float)Y[(i - frameW) - 2]) + (0.03 * (float)Y[(i - frameW) - 1]) + (0.03 * (float)Y[(i - frameW)]) + (0.03 * (float)Y[(i - frameW) + 1]) + (0.03 * (float)Y[(i - frameW) + 2]) + (0.03 * (float)Y[(i - frameW) + 3]) +
-                (0.03 * (float)Y[(i) - 2])  + (0.03 * (float)Y[(i) - 1]) + (0.03 * (float)Y[(i) + 2]) + (0.03 * (float)Y[(i) + 3]) + (0.03 * (float)Y[(i) + frameW - 2]) + (0.03 * (float)Y[(i) + frameW - 1]) + (0.03 * (float)Y[(i) + frameW + 2]) + (0.03 * (float)Y[(i) + frameW + 3]) +
-                (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
-                (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
+                    (0.03 * (float)Y[(i - frameW) - 2]) + (0.03 * (float)Y[(i - frameW) - 1]) + (0.03 * (float)Y[(i - frameW)]) + (0.03 * (float)Y[(i - frameW) + 1]) + (0.03 * (float)Y[(i - frameW) + 2]) + (0.03 * (float)Y[(i - frameW) + 3]) +
+                    (0.03 * (float)Y[(i) - 2])  + (0.03 * (float)Y[(i) - 1]) + (0.03 * (float)Y[(i) + 2]) + (0.03 * (float)Y[(i) + 3]) + (0.03 * (float)Y[(i) + frameW - 2]) + (0.03 * (float)Y[(i) + frameW - 1]) + (0.03 * (float)Y[(i) + frameW + 2]) + (0.03 * (float)Y[(i) + frameW + 3]) +
+                    (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
+                    (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
         float res  = c1 - c2;
 
         int compIndex = 0;
 
+        // Picking out units of computation
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) % 3 == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) % 4 == 1)){
+
+            // To check if the current index is in the middle
+            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))){
+                sectionWidth = ((oz1side / 3) * 2);
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 3) * (oz1up / 4);
+                int rightAdder = (oz1side / 3);
+
+                // -------------- Translating Indices ----------------
+                //Left Section
+                if(currX < fovX){
+                    checkr = 1;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/3 + (((currY - (fovY - (paraLength + fovWidthMidPre + periLength))))/4 * sectionWidth)) + RGCoffset + currentSum;
+                }
+                    // Right Section
+                else {
+                    checkr = 2;
+                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength))))/3) + (((currY - (fovY - ((paraLength + fovWidthMidPre + periLength)))))/4 * sectionWidth)) + RGCoffset + currentSum;
+                }
+            }
+
+                // Checks if current index is in the top or bottom sections
+            else {
+                // Top Section
+                if(currY < fovY){
+                    checkr = 3;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 3);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/3 + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up)))))/4) * sectionWidth)) + RGCoffset;
+                }
+                    // Bottom Section
+                else {
+                    checkr = 4;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 3);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 3) * (oz1up / 4)) + ((((oz1side / 3) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / 4));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/3 + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength)))))/4 * sectionWidth)) + RGCoffset + currentSum;
+                }
+
+                //--------------------------X--------------------------
+
+            }
+
+            // Entering data
+            rgc[compIndex] = checkr;
+        }
     }
 
 
@@ -293,12 +338,12 @@ int visualPass1 (){
     int foveaWidth = 300;
     int paraLength = 200;
     int periLength = 300;
-    int oz1up = 500;
-    int oz1side = 1000;
-    int oz2up = 1000;
-    int oz2side = 2000;
-    int oz3up = 1500;
-    int oz3side = 3000;
+    int oz1up = 400;
+    int oz1side = 500;
+    int oz2up = 500;
+    int oz2side = 1000;
+    int oz3up = 600;
+    int oz3side = 1500;
 
 
 
@@ -428,7 +473,7 @@ int visualPass1 (){
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(hostRGCTests, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cout << hostTest[125176] << endl;
-    for(int i = 0; i < 323350; i +=1){
+    for(int i = 0; i < 510000; i +=1){
         if(hostTest[i] != i){
             cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
         }
