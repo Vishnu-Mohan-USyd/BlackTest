@@ -7,7 +7,7 @@
 #include "../vidStuff/vidReader.h"
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include <thrust/generate.h>
+#include <thrust/generate.h>9
 #include <thrust/sort.h>
 #include <thrust/copy.h>
 #include <thread>
@@ -66,8 +66,8 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     int xDiff = currX - fovX;
     int yDiff = currY - fovY;
     int index = 0;
-    if((((xDiff < 0) && ((xDiff * -1) > actFovX)) || ((xDiff > 0) && (xDiff > (frameW - actFovX)))) ||
-            (((yDiff < 0) && ((yDiff * -1) > actFovY)) || ((yDiff > 0) && (yDiff > (frameH - actFovY))))){
+    if((((xDiff < 0) && (((xDiff + 8) * -1) > actFovX)) || (((xDiff) > 0) && ((xDiff + 8) > (frameW - actFovX)))) ||
+       ((((yDiff) < 0) && (((yDiff + 8) * -1) > actFovY)) || (((yDiff) > 0) && ((yDiff + 8) > (frameH - actFovY))))){
         index = -1;
     } else {
         index = (xDiff + actFovX) + ((yDiff + actFovY) * frameW);
@@ -94,7 +94,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                     (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
                     (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]))/255;
         float res  = c1 - c2;
-        if(index < 0) res = 16;
+        if(index < 0) res = -1;
         else res  = c1 - c2;
         if(res < 0) res = 0;
 
@@ -133,7 +133,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                     (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
                     (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]))/255;
         float res  = c1 - c2;
-        if(index < 0) res = 16;
+        if(index < 0) res = -1;
         else res  = c1 - c2;
         // rgc[90001] = 2;
         // The ParaComputationalUnits;
@@ -182,7 +182,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgc[compIndex] = res;
         }
     }
     // ---------------------------------- X -----------------------------------
@@ -209,7 +209,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                     (0.08 * (float)Y[(i) - 1]) + (0.08 * (float)Y[(i) + 2]) + (0.08 * (float)Y[(i) + frameW - 1]) + (0.08 * (float)Y[(i) + frameW + 2]) +
                     (0.08 * (float)Y[(i + (2 * frameW)) - 1]) + (0.08 * (float)Y[(i + (2 * frameW))]) + (0.08 * (float)Y[(i + (2 * frameW)) + 1]) + (0.08 * (float)Y[(i + (2 * frameW)) + 2]))/255;
         float res  = c1 - c2;
-        if(index < 0) res = 16;
+        if(index < 0) res = -1;
         else res  = c1 - c2;
 
 
@@ -258,7 +258,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgc[compIndex] = res;
         }
     }
 
@@ -288,7 +288,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                     (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
                     (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
         float res  = c1 - c2;
-        if(index < 0) res = 16;
+        if(index < 0) res = -1;
         else res  = c1 - c2;
 
         int compIndex = 0;
@@ -336,7 +336,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgc[compIndex] = res;
         }
     }
 
@@ -371,7 +371,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                     (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
                     (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
         float res  = c1 - c2;
-        if(index < 0) res = 16;
+        if(index < 0) res = -1;
         else res  = c1 - c2;
 
         int compIndex = 0;
@@ -419,7 +419,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgc[compIndex] = res;
         }
     }
 
@@ -452,7 +452,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                     (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
                     (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
         float res  = c1 - c2;
-        if(index < 0) res = 16;
+        if(index < 0) res = -1;
         else res  = c1 - c2;
 
         int compIndex = 0;
@@ -500,7 +500,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgc[compIndex] = res;
         }
     }
 
@@ -697,7 +697,7 @@ int visualPass1 (){
         if(i%36 == 35){
             cudaSetDevice(0);
             cudaDeviceSynchronize();
-            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, foveaWidth, paraLength, periLength, frame_width,
+            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592400, numOfPixels, frame_height, foveaWidth, paraLength, periLength, frame_width,
                                                                                Y_1, U_1, V_1, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, retinaDivs);
             cudaDeviceSynchronize();
         }
@@ -721,10 +721,14 @@ int visualPass1 (){
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(hostRGCTests, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     // cout << hostTest[125176] << endl;
-    for(int i = 0; i < 780000; i +=1){
-        if(hostTest[i] != i){
-            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
-        }
+    for(int i = 0; i < 776990; i +=1){
+        if(hostTest[i] == -1){
+            cout << ". ";
+        } else cout << "x ";
+        if (i % (((((foveaWidth) + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / divFactors[5]))) == 1) cout << endl;
+//        if(hostTest[i] != i){
+//            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
+//        }
     }
 
 
