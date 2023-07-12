@@ -6,3 +6,6 @@ wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb &
 
 and then replace preferred web application with this :
 /usr/bin/google-chrome --no-sandbox
+
+// GPG Key for Ubuntu
+sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
