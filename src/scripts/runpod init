@@ -9,3 +9,10 @@ and then replace preferred web application with this :
 
 // GPG Key for Ubuntu
 sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
+For CUDA 12.0
+
+- wget https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
+- sudo sh cuda_12.0.0_525.60.13_linux.run
+- nano .bashrc
+- export PATH=/usr/local/cuda-12.0/bin${PATH:+:${PATH}}
+- export LD_LIBRARY_PATH=/usr/local/cuda-12.0/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
