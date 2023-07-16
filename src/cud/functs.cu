@@ -13,8 +13,13 @@
 #include <thread>
 #include <omp.h>
 #include "cuda_profiler_api.h"
+#include <GLFW/glfw3.h>
 
 using namespace std;
+
+PARAMS params;
+FRUSTUM frustum;
+
 __global__
 void saxpy(int n, float a, float *x, float *y)
 {
@@ -22,10 +27,167 @@ void saxpy(int n, float a, float *x, float *y)
 
     if (i < (n -1)) x[i] = x[i+1] ;
 
+
+}
+
+void CalcFrustum(void)
+{
+    double dh,dv;
+
+    XYZ vp = {0,0,0};     // At the origin
+    XYZ vd = {0,1,0};     // View Direction. Looking down the +y axis
+    XYZ vu = {0,0,1};     // Up vector. z axis
+    XYZ vr = {1,0,0};     // Right vector, x axis. CrossProduct(vd,vu);
+
+    dh = tan(params.perspfov * (M_PI / 180) / 2);                 // half frustum width
+    dv = params.perspHeight * dh / params.perspWidth;     // half frustum height
+
+    // Corners of view frustum
+    frustum.p1 = VectorSum(1.0,vp,1.0,vd,-dh,vr, dv,vu);
+    frustum.p2 = VectorSum(1.0,vp,1.0,vd,-dh,vr,-dv,vu);
+    frustum.p3 = VectorSum(1.0,vp,1.0,vd, dh,vr,-dv,vu);
+    frustum.p4 = VectorSum(1.0,vp,1.0,vd, dh,vr, dv,vu);
+
+    // Apply horizontal and vertical offset
+    //
+    // Offset = 0                 Offset = 1
+    //            +                   +
+    //          / |                 / |
+    //        /   |                /  |
+    //      /     |               /   |
+    //    --------+---> y        /    |
+    //      \     |             /     |
+    //        \   |            /      |
+    //          \ |           --------+---> y
+    //            +
+    //
+    frustum.p1.x += dv * params.hoffset * vr.x;
+    frustum.p1.z += dv * params.voffset * vu.z;
+    frustum.p2.x += dv * params.hoffset * vr.x;
+    frustum.p2.z += dv * params.voffset * vu.z;
+    frustum.p3.x += dv * params.hoffset * vr.x;
+    frustum.p3.z += dv * params.voffset * vu.z;
+    frustum.p4.x += dv * params.hoffset * vr.x;
+    frustum.p4.z += dv * params.voffset * vu.z;
+}
+
+__device__
+XYZ CameraRay(double x,double y, PARAMS *deviceParams)
+{
+    int k;
+    double u,v;
+    XYZ p,q;
+
+    u = x / deviceParams->perspWidth;
+    v = (deviceParams->perspHeight - y) / deviceParams->perspHeight;
+
+    p.x = frustum.p1.x + u * (frustum.p4.x - frustum.p1.x);
+    p.y = frustum.p1.y;
+    p.z = frustum.p1.z + v * (frustum.p2.z - frustum.p1.z);
+
+    // Apply rotations
+    for (k=0;k<deviceParams->ntransform;k++) {
+        switch(deviceParams->transform[k].axis) {
+            case XTILT:
+                q.x =  p.x;
+                q.y =  p.y * deviceParams->transform[k].cvalue + p.z * deviceParams->transform[k].svalue;
+                q.z = -p.y * deviceParams->transform[k].svalue + p.z * deviceParams->transform[k].cvalue;
+                break;
+            case YROLL:
+                q.x =  p.x * deviceParams->transform[k].cvalue + p.z * deviceParams->transform[k].svalue;
+                q.y =  p.y;
+                q.z = -p.x * deviceParams->transform[k].svalue + p.z * deviceParams->transform[k].cvalue;
+                break;
+            case ZPAN:
+                q.x =  p.x * deviceParams->transform[k].cvalue + p.y * deviceParams->transform[k].svalue;
+                q.y = -p.x * deviceParams->transform[k].svalue + p.y * deviceParams->transform[k].cvalue;
+                q.z =  p.z;
+                break;
+        }
+        p = q;
+    }
+
+    return(p);
+}
+
+XYZ VectorSum(double d1,XYZ p1,double d2,XYZ p2,double d3,XYZ p3,double d4,XYZ p4)
+{
+    XYZ sum;
+
+    sum.x = d1 * p1.x + d2 * p2.x + d3 * p3.x + d4 * p4.x;
+    sum.y = d1 * p1.y + d2 * p2.y + d3 * p3.y + d4 * p4.y;
+    sum.z = d1 * p1.z + d2 * p2.z + d3 * p3.z + d4 * p4.z;
+
+    return(sum);
 }
 
 __global__
-void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL, int perL, int frameW, ::uint8_t  *Y, ::uint8_t *U, ::uint8_t *V, float *rgc, float *rgcTestr, char *rgcLay, int oz1up, int oz1side, int oz2up, int oz2side, int oz3up, int oz3side)
+void world2Persp(::uint8_t  *worldFrame, ::uint8_t  *perspFrame, PARAMS *deviceParams)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int x = i % deviceParams->perspWidth;
+    int y = i / deviceParams->perspWidth;
+    RGB rgbsum = {0,0,0, 0};
+    XYZ par;
+    double longitude, latitude, xAlias, yAlias, x_sphere, y_sphere;
+    int top_left_x, top_left_y, spIndex;
+
+    for (int ai=0;ai<deviceParams->antialias;ai++) {
+        xAlias = x + ai / (double)deviceParams->antialias;
+        for (int aj=0;aj<deviceParams->antialias;aj++) {
+            yAlias = y + aj / (double)deviceParams->antialias;
+
+            par = CameraRay((double)xAlias, (double)yAlias, deviceParams);
+            longitude = atan2(par.x,par.y);                     // -pi ... pi
+            latitude = atan2(par.z,sqrt(par.x*par.x+par.y*par.y));    // -pi/2 ... pi/2
+            x_sphere = (longitude - deviceParams->longmin) * deviceParams->worldWidth  / (deviceParams->longmax - deviceParams->longmin);
+            y_sphere = (latitude - deviceParams->latmin) * deviceParams->worldHeight / (deviceParams->latmax - deviceParams->latmin);
+            if (x_sphere < 0 || y_sphere < 0)
+                continue;
+            if (y_sphere >= deviceParams->worldHeight)
+                continue;
+
+            if (x_sphere >= deviceParams->worldWidth) {
+                if (deviceParams->longmin == -M_PI && deviceParams->longmax == M_PI)
+                    x_sphere -= deviceParams->worldWidth;
+                else
+                    continue;
+            }
+
+            top_left_x = (int)x_sphere;
+            top_left_y = (int)y_sphere;
+
+            spIndex = (top_left_y * deviceParams->worldWidth * 4) + (top_left_x * 4);
+            rgbsum.r += worldFrame[spIndex];
+            rgbsum.g += worldFrame[spIndex + 1];
+            rgbsum.b += worldFrame[spIndex + 2];
+            rgbsum.a += worldFrame[spIndex + 3];
+        }
+    }
+
+    perspFrame[(y * deviceParams->perspWidth * 4) + (x * 4)] = rgbsum.r / deviceParams->antialias2;
+    perspFrame[(y * deviceParams->perspWidth * 4) + (x * 4) + 1] = rgbsum.g / deviceParams->antialias2;
+    perspFrame[(y * deviceParams->perspWidth * 4) + (x * 4) + 2] = rgbsum.b / deviceParams->antialias2;
+    perspFrame[(y * deviceParams->perspWidth * 4) + (x * 4) + 3] = rgbsum.a / deviceParams->antialias2;
+    // testboy->testr = 56;
+    perspFrame[i] = deviceParams->testr;
+
+}
+
+__global__
+void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    persp1[i] = perspFrame[i];
+
+}
+
+
+
+__global__
+void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL, int perL, int frameW, ::uint8_t  *worldFrame, ::uint8_t  *perspFrame, float *rgc, float *rgcTestr, char *rgcLay, int oz1up, int oz1side, int oz2up, int oz2side, int oz3up, int oz3side, int* retDivs)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -41,29 +203,61 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
      * Outer Zone 3 - 600 up, 1500 side || Total RGCs are 125,300 (18.06M pixels)
      *
      * Total rgc collection count - 777,526 RGCs
+     *
+     * ---------------- For 4k Video --------------
+     *
+     * Fovea - 180 x 180 || Total RGCs are 32,400
+     * Parafovea - 100 plus on all sides || Total RGCs are 100,150
+     * Perifovea - 300 plus on all sides || Total RGCs are 133,200
+     * Outer Zone 1 - 400 up, 500 side || Total RGCs are 196,250 (3.14M pixels)
+     * Outer Zone 2 - 500 up, 1000 side || Total RGCs are 132,625 (8.25M pixels)
+     * Outer Zone 3 - 600 up, 1500 side || Total RGCs are 125,300 (18.06M pixels)
+     *
+     * Total rgc collection count - 777,526 RGCs
      * */
 
-    int fovY = foveaPoint/frameW;
-    int fovX = foveaPoint - (fovY * frameW);
+    // foveaPoint = pixelCount/2;
+    int defFovPoint = 4145280;
+    int actFovY = foveaPoint/frameW;
+    int actFovX = foveaPoint - (actFovY * frameW);
+    int fovY = defFovPoint/frameW;
+    int fovX = defFovPoint - (fovY * frameW);
     int currY = i/frameW;
     int currX = i - (currY * frameW);
     // rgc[i] = 2;
+    int xDiff = currX - fovX;
+    int yDiff = currY - fovY;
+    int index = 0;
+    if((((xDiff < 0) && (((xDiff - 8) * -1) > actFovX)) || (((xDiff) > 0) && ((xDiff + 8) > (frameW - actFovX)))) ||
+       ((((yDiff) < 0) && (((yDiff - 8) * -1) > actFovY)) || (((yDiff) > 0) && ((yDiff + 8) > (frameH - actFovY))))){
+        index = -1;
+    } else {
+        index = (xDiff + actFovX) + ((yDiff + actFovY) * frameW);
+    }
+
 
     int fovWidth = fW; int fovWidthMidPre = ((fovWidth / 2) - 1); int fovWidthMidPost = (fovWidth / 2);
     int paraLength = parL;
     int periLength = perL;
 
 
+
+
+
+
+
     // ----------------------- Foveal Processing -----------------------
     if((currX >= fovX - fovWidthMidPre) && (currY >= fovY - fovWidthMidPre) && (currX <= fovX + fovWidthMidPost) && (currY <= fovY + fovWidthMidPost)){
         // rgc[2] = 1;
         int RGCoffset = 0;
-        int sectionWidth = 300;
-        float c1 = ((float)Y[i])/255;
-        float c2 = ((0.125 * (float)Y[(i - frameW) - 1]) + (0.125 * (float)Y[(i - frameW)]) + (0.125 * (float)Y[(i - frameW) + 1]) +
-                    (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
-                    (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]))/255;
+        int sectionWidth = fovWidth;
+        float c1 = ((float)perspFrame[i])/255;
+        float c2 = ((0.125 * (float)perspFrame[(i - frameW) - 1]) + (0.125 * (float)perspFrame[(i - frameW)]) + (0.125 * (float)perspFrame[(i - frameW) + 1]) +
+                    (0.125 * (float)perspFrame[(i) - 1]) + (0.125 * (float)perspFrame[(i) + 1]) +
+                    (0.125 * (float)perspFrame[(i + frameW) - 1]) + (0.125 * (float)perspFrame[(i + frameW)]) + (0.125 * (float)perspFrame[(i + frameW) + 1]))/255;
         float res  = c1 - c2;
+        if(index < 0) res = -1;
+        else res  = c1 - c2;
         if(res < 0) res = 0;
 
         // Converting from 2D modelled frame to linear RGC array
@@ -77,13 +271,13 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     if (// Inner Perimeters
 
         // Left
-            ((currX <= (fovX - fovWidthMidPre)) && (currX >= (fovX - (fovWidthMidPre + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))) ||
+            ((currX < (fovX - fovWidthMidPre)) && (currX >= (fovX - (fovWidthMidPre + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY - fovWidthMidPre))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY < (fovY - fovWidthMidPre))) ||
             // Right
-            ((currX >= (fovX + fovWidthMidPost)) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))) ||
+            ((currX > (fovX + fovWidthMidPost)) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY + fovWidthMidPost)) && (currY <= (fovY + (fovWidthMidPost + paraLength))))){
+            ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY > (fovY + fovWidthMidPost)) && (currY <= (fovY + (fovWidthMidPost + paraLength))))){
 
         //rgc[90001] = 2;
         int RGCoffset = fovWidth * fovWidth;
@@ -96,34 +290,36 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
 //        else if ((currY >= (fovY - (149))) && (currY <= (fovY + (149))))
 //            sectionWidth = 201;
 
-        float c1 = ((float)Y[i])/255;
-        float c2 = ((0.125 * (float)Y[(i - frameW) - 1]) + (0.125 * (float)Y[(i - frameW)]) + (0.125 * (float)Y[(i - frameW) + 1]) +
-                    (0.125 * (float)Y[(i) - 1]) + (0.125 * (float)Y[(i) + 1]) +
-                    (0.125 * (float)Y[(i + frameW) - 1]) + (0.125 * (float)Y[(i + frameW)]) + (0.125 * (float)Y[(i + frameW) + 1]))/255;
+        float c1 = ((float)perspFrame[i])/255;
+        float c2 = ((0.125 * (float)perspFrame[(i - frameW) - 1]) + (0.125 * (float)perspFrame[(i - frameW)]) + (0.125 * (float)perspFrame[(i - frameW) + 1]) +
+                    (0.125 * (float)perspFrame[(i) - 1]) + (0.125 * (float)perspFrame[(i) + 1]) +
+                    (0.125 * (float)perspFrame[(i + frameW) - 1]) + (0.125 * (float)perspFrame[(i + frameW)]) + (0.125 * (float)perspFrame[(i + frameW) + 1]))/255;
         float res  = c1 - c2;
+        if(index < 0) res = -1;
+        else res  = c1 - c2;
         // rgc[90001] = 2;
         // The ParaComputationalUnits;
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX % 2) == (fovX % 2)) && ((currY % 2) == (fovY % 2))){
+        if (((currX % 1) == 0) && ((currY % 1) == 0)){
 
             // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre))) && (currY <= (fovY + (fovWidthMidPost)))){
-                sectionWidth = paraLength + 1;
-                currentSum = ((fovWidth + (2 * paraLength)) / 2) * ( paraLength / 2 );
-                int rightAdder = paraLength / 2;
+                sectionWidth = paraLength;
+                currentSum = (((fovWidth + (2 * paraLength)) / retDivs[1]) * ( paraLength / retDivs[1] ));
+                int rightAdder = paraLength/2;
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/2 + ((currY - (fovY - (fovWidthMidPre)))/2 * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/retDivs[1] + ((currY - (fovY - (fovWidthMidPre)))/retDivs[1] * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (currX - (fovX + fovWidthMidPost))/2 + ((currY - (fovY - (fovWidthMidPre)))/2 * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (currX - (fovX + fovWidthMidPost + 1))/retDivs[1] + ((currY - (fovY - (fovWidthMidPre)))/retDivs[1] * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -132,15 +328,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (2 * paraLength)) / 2);
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/2 + (((currY - (fovY - (paraLength + fovWidthMidPre)))/2) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (2 * paraLength)) / retDivs[1]);
+                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/retDivs[1] + (((currY - (fovY - (paraLength + fovWidthMidPre)))/retDivs[1]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (2 * paraLength)) / 2);
-                    currentSum = (sectionWidth * ( paraLength / 2 )) + ((paraLength + 1) * (fovWidth/2));
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/2 + ((currY - (fovY + (fovWidthMidPost + 1)))/2 * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (2 * paraLength)) / retDivs[1]);
+                    currentSum = (sectionWidth * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1]));
+                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/retDivs[1] + ((currY - (fovY + (fovWidthMidPost + 1)))/retDivs[1] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -158,45 +354,48 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     if (// Inner Perimeters
 
         // Left
-            ((currX <= (fovX - (fovWidthMidPre + paraLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))) ||
+            ((currX < (fovX - (fovWidthMidPre + paraLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY - (fovWidthMidPre + paraLength)))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY < (fovY - (fovWidthMidPre + paraLength)))) ||
             // Right
-            ((currX >= (fovX + fovWidthMidPost + paraLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))) ||
+            ((currX > (fovX + fovWidthMidPost + paraLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY + fovWidthMidPost + paraLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength))))){
-        int RGCoffset = 190150;
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY > (fovY + fovWidthMidPost + paraLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength))))){
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1]))));
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)Y[i])/255)) + (0.25 * (((float)Y[i + 1])/255)) + (0.25 * (((float)Y[i + frameW])/255)) + (0.25 * (((float)Y[i + frameW + 1])/255));
-        float c2 = ((0.08 * (float)Y[(i - frameW) - 1]) + (0.08 * (float)Y[(i - frameW)]) + (0.08 * (float)Y[(i - frameW) + 1]) + (0.08 * (float)Y[(i - frameW) + 2]) +
-                    (0.08 * (float)Y[(i) - 1]) + (0.08 * (float)Y[(i) + 2]) + (0.08 * (float)Y[(i) + frameW - 1]) + (0.08 * (float)Y[(i) + frameW + 2]) +
-                    (0.08 * (float)Y[(i + (2 * frameW)) - 1]) + (0.08 * (float)Y[(i + (2 * frameW))]) + (0.08 * (float)Y[(i + (2 * frameW)) + 1]) + (0.08 * (float)Y[(i + (2 * frameW)) + 2]))/255;
+        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
+        float c2 = ((0.08 * (float)perspFrame[(i - frameW) - 1]) + (0.08 * (float)perspFrame[(i - frameW)]) + (0.08 * (float)perspFrame[(i - frameW) + 1]) + (0.08 * (float)perspFrame[(i - frameW) + 2]) +
+                    (0.08 * (float)perspFrame[(i) - 1]) + (0.08 * (float)perspFrame[(i) + 2]) + (0.08 * (float)perspFrame[(i) + frameW - 1]) + (0.08 * (float)perspFrame[(i) + frameW + 2]) +
+                    (0.08 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.08 * (float)perspFrame[(i + (2 * frameW))]) + (0.08 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.08 * (float)perspFrame[(i + (2 * frameW)) + 2]))/255;
         float res  = c1 - c2;
+        if(index < 0) res = -1;
+        else res  = c1 - c2;
+
 
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) % 3 == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength))) % 3 == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) % retDivs[2] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength))) % retDivs[2] == 1)){
 
             // To check if the current index is in the middle
             if((currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))){
-                sectionWidth = (periLength / 3) * 2;
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2)) / 3) * (periLength / 3);
-                int rightAdder = (periLength / 3);
+                sectionWidth = (periLength / retDivs[2]) * 2;
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2]);
+                int rightAdder = (periLength / retDivs[2]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/3 + (((currY - (fovY - (paraLength + fovWidthMidPre))))/3 * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2] + (((currY - (fovY - (paraLength + fovWidthMidPre))))/retDivs[2] * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + ((currX - (fovX + (paraLength + fovWidthMidPost))))/3 + (((currY - (fovY - ((paraLength + fovWidthMidPre)))))/3 * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + ((currX - (fovX + (paraLength + fovWidthMidPost + 1))))/retDivs[2] + (((currY - (fovY - ((paraLength + fovWidthMidPre)))))/retDivs[2] * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -205,15 +404,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / 3);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/3 + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength)))))/3) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / 3);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2)) / 3) * (periLength / 3)) + (((2 * periLength) / 3) * ((fovWidth + (2 * paraLength)) / 3));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/3 + (((currY - (fovY + ((paraLength + fovWidthMidPost)))))/3 * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2] + (((currY - (fovY + ((paraLength + fovWidthMidPost + 1)))))/retDivs[2] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -232,46 +431,49 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         // Left
             ((currX < (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY - (fovWidthMidPre + paraLength  + periLength)))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength)))) ||
             // Right
             ((currX > (fovX + fovWidthMidPost + paraLength + periLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY + fovWidthMidPost + paraLength + periLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up))))){
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up))))){
 
-        int RGCoffset = 323350;
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1])))) +
+                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2])) * (periLength / retDivs[2])));
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)Y[i])/255)) + (0.25 * (((float)Y[i + 1])/255)) + (0.25 * (((float)Y[i + frameW])/255)) + (0.25 * (((float)Y[i + frameW + 1])/255));
-        float c2 = ((0.03 * (float)Y[(i - (2 * frameW)) - 2]) + (0.03 * (float)Y[(i - (2 * frameW)) - 1]) + (0.03 * (float)Y[(i - (2 * frameW))]) + (0.03 * (float)Y[(i - (2 * frameW)) + 1]) + (0.03 * (float)Y[(i - (2 * frameW)) + 2]) + (0.03 * (float)Y[(i - (2 * frameW)) + 3]) +
-                    (0.03 * (float)Y[(i - frameW) - 2]) + (0.03 * (float)Y[(i - frameW) - 1]) + (0.03 * (float)Y[(i - frameW)]) + (0.03 * (float)Y[(i - frameW) + 1]) + (0.03 * (float)Y[(i - frameW) + 2]) + (0.03 * (float)Y[(i - frameW) + 3]) +
-                    (0.03 * (float)Y[(i) - 2])  + (0.03 * (float)Y[(i) - 1]) + (0.03 * (float)Y[(i) + 2]) + (0.03 * (float)Y[(i) + 3]) + (0.03 * (float)Y[(i) + frameW - 2]) + (0.03 * (float)Y[(i) + frameW - 1]) + (0.03 * (float)Y[(i) + frameW + 2]) + (0.03 * (float)Y[(i) + frameW + 3]) +
-                    (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
-                    (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
+        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
+        float c2 = ((0.03 * (float)perspFrame[(i - (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW))]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 3]) +
+                    (0.03 * (float)perspFrame[(i - frameW) - 2]) + (0.03 * (float)perspFrame[(i - frameW) - 1]) + (0.03 * (float)perspFrame[(i - frameW)]) + (0.03 * (float)perspFrame[(i - frameW) + 1]) + (0.03 * (float)perspFrame[(i - frameW) + 2]) + (0.03 * (float)perspFrame[(i - frameW) + 3]) +
+                    (0.03 * (float)perspFrame[(i) - 2])  + (0.03 * (float)perspFrame[(i) - 1]) + (0.03 * (float)perspFrame[(i) + 2]) + (0.03 * (float)perspFrame[(i) + 3]) + (0.03 * (float)perspFrame[(i) + frameW - 2]) + (0.03 * (float)perspFrame[(i) + frameW - 1]) + (0.03 * (float)perspFrame[(i) + frameW + 2]) + (0.03 * (float)perspFrame[(i) + frameW + 3]) +
+                    (0.03 * (float)perspFrame[(i + (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW))]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 3]) +
+                    (0.03 * (float)perspFrame[(i + (3 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW))]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 3]))/255;
         float res  = c1 - c2;
+        if(index < 0) res = -1;
+        else res  = c1 - c2;
 
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) % 4 == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) % 4 == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) % retDivs[3] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) % retDivs[3] == 1)){
 
             // To check if the current index is in the middle
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))){
-                sectionWidth = ((oz1side / 4) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 4) * (oz1up / 4);
-                int rightAdder = (oz1side / 4);
+                sectionWidth = ((oz1side / retDivs[3]) * 2);
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3]);
+                int rightAdder = (oz1side / retDivs[3]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/4 + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength))))/4) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/retDivs[3] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength))))/retDivs[3]) * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength))))/4) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength)))))/4) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength+ 1))))/retDivs[3]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength)))))/retDivs[3]) * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -280,15 +482,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 4);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/4 + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up)))))/4) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/retDivs[3] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up)))))/retDivs[3]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 4);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / 4) * (oz1up / 4)) + ((((oz1side / 4) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / 4));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/4 + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength)))))/4 * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3])) + ((((oz1side / retDivs[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / retDivs[3]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/retDivs[3] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + 1)))))/retDivs[3] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -309,46 +511,52 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         // Left
             ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY <= (fovY - (fovWidthMidPre + paraLength  + periLength + oz1up)))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + oz1up)))) ||
             // Right
             ((currX > (fovX + fovWidthMidPost + paraLength + periLength + oz1side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY + fovWidthMidPost + paraLength + periLength + oz1up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up))))){
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + oz1up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up))))){
 
-        int RGCoffset = 519600;
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1])))) +
+                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2])) * (periLength / retDivs[2]))) +
+                        (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3])) + ((((oz1side / retDivs[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / retDivs[3])) +
+                        ((((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3])) * (oz1up / retDivs[3]));
+
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)Y[i])/255)) + (0.25 * (((float)Y[i + 1])/255)) + (0.25 * (((float)Y[i + frameW])/255)) + (0.25 * (((float)Y[i + frameW + 1])/255));
-        float c2 = ((0.03 * (float)Y[(i - (2 * frameW)) - 2]) + (0.03 * (float)Y[(i - (2 * frameW)) - 1]) + (0.03 * (float)Y[(i - (2 * frameW))]) + (0.03 * (float)Y[(i - (2 * frameW)) + 1]) + (0.03 * (float)Y[(i - (2 * frameW)) + 2]) + (0.03 * (float)Y[(i - (2 * frameW)) + 3]) +
-                    (0.03 * (float)Y[(i - frameW) - 2]) + (0.03 * (float)Y[(i - frameW) - 1]) + (0.03 * (float)Y[(i - frameW)]) + (0.03 * (float)Y[(i - frameW) + 1]) + (0.03 * (float)Y[(i - frameW) + 2]) + (0.03 * (float)Y[(i - frameW) + 3]) +
-                    (0.03 * (float)Y[(i) - 2])  + (0.03 * (float)Y[(i) - 1]) + (0.03 * (float)Y[(i) + 2]) + (0.03 * (float)Y[(i) + 3]) + (0.03 * (float)Y[(i) + frameW - 2]) + (0.03 * (float)Y[(i) + frameW - 1]) + (0.03 * (float)Y[(i) + frameW + 2]) + (0.03 * (float)Y[(i) + frameW + 3]) +
-                    (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
-                    (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
+        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
+        float c2 = ((0.03 * (float)perspFrame[(i - (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW))]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 3]) +
+                    (0.03 * (float)perspFrame[(i - frameW) - 2]) + (0.03 * (float)perspFrame[(i - frameW) - 1]) + (0.03 * (float)perspFrame[(i - frameW)]) + (0.03 * (float)perspFrame[(i - frameW) + 1]) + (0.03 * (float)perspFrame[(i - frameW) + 2]) + (0.03 * (float)perspFrame[(i - frameW) + 3]) +
+                    (0.03 * (float)perspFrame[(i) - 2])  + (0.03 * (float)perspFrame[(i) - 1]) + (0.03 * (float)perspFrame[(i) + 2]) + (0.03 * (float)perspFrame[(i) + 3]) + (0.03 * (float)perspFrame[(i) + frameW - 2]) + (0.03 * (float)perspFrame[(i) + frameW - 1]) + (0.03 * (float)perspFrame[(i) + frameW + 2]) + (0.03 * (float)perspFrame[(i) + frameW + 3]) +
+                    (0.03 * (float)perspFrame[(i + (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW))]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 3]) +
+                    (0.03 * (float)perspFrame[(i + (3 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW))]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 3]))/255;
         float res  = c1 - c2;
+        if(index < 0) res = -1;
+        else res  = c1 - c2;
 
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) % 8 == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) % 8 == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) % retDivs[4] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) % retDivs[4] == 1)){
 
             // To check if the current index is in the middle
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))){
-                sectionWidth = ((oz2side / 8) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / 8) * (oz2up / 8);
-                int rightAdder = (oz2side / 8);
+                sectionWidth = ((oz2side / retDivs[4]) * 2);
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]) * (oz2up / retDivs[4]);
+                int rightAdder = (oz2side / retDivs[4]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/8 + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + oz1up))))/8) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/retDivs[4] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + oz1up))))/retDivs[4]) * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + oz1side))))/8) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + oz1up)))))/8) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + oz1side + 1))))/retDivs[4]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + oz1up)))))/retDivs[4]) * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -357,15 +565,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / 8);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/8 + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up + oz2up)))))/8) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/retDivs[4] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up + oz2up)))))/retDivs[4]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / 8);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / 8) * (oz2up / 8)) + ((((oz2side / 8) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up)) / 8));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/8 + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + oz1up)))))/8 * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]) * (oz2up / retDivs[4])) + ((((oz2side / retDivs[4]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up)) / retDivs[4]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/retDivs[4] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + oz1up + 1)))))/retDivs[4] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -384,46 +592,52 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         // Left
             ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up + oz3up)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) && (currY <= (fovY - (fovWidthMidPre + paraLength  + periLength + oz1up + oz2up)))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + oz1up + oz2up)))) ||
             // Right
             ((currX > (fovX + fovWidthMidPost + paraLength + periLength + oz1side + oz2side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up + oz3up)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY + fovWidthMidPost + paraLength + periLength + oz1up + oz2up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up + oz3up))))){
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + oz1up + oz2up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up + oz3up))))){
 
-        int RGCoffset = 652226;
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / 2 )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1])))) +
+                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2])) * (periLength / retDivs[2]))) +
+                        (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3])) + ((((oz1side / retDivs[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / retDivs[3])) +
+                        ((((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3])) * (oz1up / retDivs[3])) + (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]) * (oz2up / retDivs[4])) +
+                        ((((oz2side / retDivs[4]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up)) / retDivs[4])) + ((((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4])) * (oz2up / retDivs[4]));
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)Y[i])/255)) + (0.25 * (((float)Y[i + 1])/255)) + (0.25 * (((float)Y[i + frameW])/255)) + (0.25 * (((float)Y[i + frameW + 1])/255));
-        float c2 = ((0.03 * (float)Y[(i - (2 * frameW)) - 2]) + (0.03 * (float)Y[(i - (2 * frameW)) - 1]) + (0.03 * (float)Y[(i - (2 * frameW))]) + (0.03 * (float)Y[(i - (2 * frameW)) + 1]) + (0.03 * (float)Y[(i - (2 * frameW)) + 2]) + (0.03 * (float)Y[(i - (2 * frameW)) + 3]) +
-                    (0.03 * (float)Y[(i - frameW) - 2]) + (0.03 * (float)Y[(i - frameW) - 1]) + (0.03 * (float)Y[(i - frameW)]) + (0.03 * (float)Y[(i - frameW) + 1]) + (0.03 * (float)Y[(i - frameW) + 2]) + (0.03 * (float)Y[(i - frameW) + 3]) +
-                    (0.03 * (float)Y[(i) - 2])  + (0.03 * (float)Y[(i) - 1]) + (0.03 * (float)Y[(i) + 2]) + (0.03 * (float)Y[(i) + 3]) + (0.03 * (float)Y[(i) + frameW - 2]) + (0.03 * (float)Y[(i) + frameW - 1]) + (0.03 * (float)Y[(i) + frameW + 2]) + (0.03 * (float)Y[(i) + frameW + 3]) +
-                    (0.03 * (float)Y[(i + (2 * frameW)) - 2]) + (0.03 * (float)Y[(i + (2 * frameW)) - 1]) + (0.03 * (float)Y[(i + (2 * frameW))]) + (0.03 * (float)Y[(i + (2 * frameW)) + 1]) + (0.03 * (float)Y[(i + (2 * frameW)) + 2]) + (0.03 * (float)Y[(i + (2 * frameW)) + 3]) +
-                    (0.03 * (float)Y[(i + (3 * frameW)) - 2]) + (0.03 * (float)Y[(i + (3 * frameW)) - 1]) + (0.03 * (float)Y[(i + (3 * frameW))]) + (0.03 * (float)Y[(i + (3 * frameW)) + 1]) + (0.03 * (float)Y[(i + (3 * frameW)) + 2]) + (0.03 * (float)Y[(i + (3 * frameW)) + 3]))/255;
+        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
+        float c2 = ((0.03 * (float)perspFrame[(i - (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW))]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 3]) +
+                    (0.03 * (float)perspFrame[(i - frameW) - 2]) + (0.03 * (float)perspFrame[(i - frameW) - 1]) + (0.03 * (float)perspFrame[(i - frameW)]) + (0.03 * (float)perspFrame[(i - frameW) + 1]) + (0.03 * (float)perspFrame[(i - frameW) + 2]) + (0.03 * (float)perspFrame[(i - frameW) + 3]) +
+                    (0.03 * (float)perspFrame[(i) - 2])  + (0.03 * (float)perspFrame[(i) - 1]) + (0.03 * (float)perspFrame[(i) + 2]) + (0.03 * (float)perspFrame[(i) + 3]) + (0.03 * (float)perspFrame[(i) + frameW - 2]) + (0.03 * (float)perspFrame[(i) + frameW - 1]) + (0.03 * (float)perspFrame[(i) + frameW + 2]) + (0.03 * (float)perspFrame[(i) + frameW + 3]) +
+                    (0.03 * (float)perspFrame[(i + (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW))]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 3]) +
+                    (0.03 * (float)perspFrame[(i + (3 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW))]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 3]))/255;
         float res  = c1 - c2;
+        if(index < 0) res = -1;
+        else res  = c1 - c2;
 
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) % 12 == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) % 12 == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) % retDivs[5] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) % retDivs[5] == 1)){
 
             // To check if the current index is in the middle
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up)))){
-                sectionWidth = ((oz3side / 12) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / 12) * (oz3up / 12);
-                int rightAdder = (oz3side / 12);
+                sectionWidth = ((oz3side / retDivs[5]) * 2);
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]) * (oz3up / retDivs[5]);
+                int rightAdder = (oz3side / retDivs[5]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/12 + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + oz1up + oz2up))))/12) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/retDivs[5] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + oz1up + oz2up))))/retDivs[5]) * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + oz1side + oz2side))))/12) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + oz1up + oz2up)))))/12) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + oz1side + oz2side + 1))))/retDivs[5]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + oz1up + oz2up)))))/retDivs[5]) * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -432,15 +646,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / 12);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/12 + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up)))))/12) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/retDivs[5] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up)))))/retDivs[5]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / 12);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / 12) * (oz3up / 12)) + ((((oz3side / 12) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up) + (2 * oz2up)) / 12));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/12 + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + oz1up + oz2up)))))/12 * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]) * (oz3up / retDivs[5])) + ((((oz3side / retDivs[5]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up) + (2 * oz2up)) / retDivs[5]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/retDivs[5] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + oz1up + oz2up + 1)))))/retDivs[5] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -476,29 +690,105 @@ void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
 
 int visualPass1 (){
 
+    GLFWwindow* window;
+    int frCount = 0 ;
+
+    if (!glfwInit()) {
+        printf("Couldn't init GLFW\n");
+        return 1;
+    }
+
+
     // Video processing parameters
     VideoReaderState vr_state;
-    if (!video_reader_open(&vr_state, "/home/kasm-user/CLionProjects/BlackTest/src/cud/sing.mp4")) {
+    if (!video_reader_open(&vr_state, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachLeft.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
     }
+
+    window = glfwCreateWindow(1280, 720, "Hello World", NULL, NULL);
+    if (!window) {
+        printf("Couldn't open window\n");
+        return 1;
+    }
+
+    glfwMakeContextCurrent(window);
+
+    // Generate texture
+    GLuint tex_handle;
+    glGenTextures(1, &tex_handle);
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+
 
     // Allocate frame buffer
     constexpr int ALIGNMENT = 128;
     const int frame_width = vr_state.width;
     const int frame_height = vr_state.height;
+    const int perspHeight = 3840;
+    const int perspWidth = 2160;
     int numOfPixels = frame_width * frame_height;
+    int * divFactors, * retinaDivs;
+
+    divFactors = (int*)malloc(6*sizeof(int));
+    // cudaMallocHost((void**)&divFactors, sizeof(int));
+
+    int foveaWidth = 0;
+    int paraLength = 0;
+    int periLength = 0;
+    int oz1up = 0;
+    int oz1side = 0;
+    int oz2up = 0;
+    int oz2side = 0;
+    int oz3up = 0;
+    int oz3side = 0;
+
+    cout << "Div Fac 1 : " << divFactors[1] << endl;
+    if (frame_width > 5000) {
+        cout << "Resolution of Video is 8K" << endl; //16592460 - foveal point
+        foveaWidth = 300;
+        divFactors[0] = 1;
+        paraLength = 200;
+        divFactors[1] = 2;
+        periLength = 300;
+        divFactors[2] = 3;
+        oz1up = 400;
+        oz1side = 500;
+        divFactors[3] = 4;
+        oz2up = 500;
+        oz2side = 1000;
+        divFactors[4] = 8;
+        oz3up = 600;
+        oz3side = 1500;
+        divFactors[5] = 12;
 
 
-    int foveaWidth = 300;
-    int paraLength = 200;
-    int periLength = 300;
-    int oz1up = 400;
-    int oz1side = 500;
-    int oz2up = 500;
-    int oz2side = 1000;
-    int oz3up = 600;
-    int oz3side = 1500;
+
+    }
+    else if (frame_width > 3000 && frame_width < 5000){
+        cout << "Resolution of Video is 4K" << endl; //4145280 - foveal point
+        foveaWidth = 180;
+        divFactors[0] = 1; // 32,400 - 129,600
+        paraLength = 90;
+        divFactors[1] = 1; // 45,000 - 90,000
+        periLength = 150;
+        divFactors[2] = 2; // 76,500
+        oz1up = 120;
+        oz1side = 255;
+        divFactors[3] = 3; // 60,000
+        oz2up = 250;
+        oz2side = 510;
+        divFactors[4] = 5; // 81,000
+        oz3up = 375;
+        oz3side = 765;
+        divFactors[5] = 7; // 83,686
+    }
 
 
 
@@ -510,6 +800,98 @@ int visualPass1 (){
         printf("Couldn't allocate frame buffer\n");
     }
 
+    int i = 0;
+    // while (i < 1) {
+    i += 1;
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up orphographic projection
+    int window_width, window_height;
+    glfwGetFramebufferSize(window, &window_width, &window_height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, window_width, window_height, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+
+    // Read a new frame and load it into texture
+    int64_t pts;
+    AVFrame* frame = video_reader_read_frame(&vr_state, frame_data, &pts);
+
+    static bool first_frame = true;
+    if (first_frame) {
+        glfwSetTime(0.0);
+        first_frame = false;
+    }
+
+//        double pt_in_seconds = pts * (double)vr_state.time_base.num / (double)vr_state.time_base.den;
+//        while (pt_in_seconds > glfwGetTime()) {
+//            glfwWaitEventsTimeout(pt_in_seconds - glfwGetTime());
+//        }
+
+
+
+    int height = frame->height, width = frame->width;
+    int u = 0, p_y = 0, p_uv = 0, corrID = 0;
+    uint8_t* data = new uint8_t [height * width * 4];
+    for (int y = 0; y < frame->height; y++){
+        for (int x = 0; x < frame_width; x++){
+            p_y = (y * width) + x;
+
+            corrID = ((y/2) * frame->linesize[2]) + (x/2);
+
+            // R
+            data[u] = frame->data[0][p_y] + (1.370705 * (frame->data[2][corrID] - 128));
+
+            // G
+            data[u +1] = frame->data[0][p_y] - (0.337633 * (frame->data[1][corrID] - 128)) - (0.698001 * (frame->data[2][corrID] - 128));
+
+            // B
+            data[u +2] = frame->data[0][p_y] + 1.732446 * (frame->data[1][corrID] - 128);
+
+            // A
+            data[u + 3] = frame->data[0][p_y];
+//                if (x == 2 & y == 2)
+//                    cout << "rep : " << i << " || Height : " << y << " || p_y value : " << p_y << " || corrID : " << corrID <<
+//                         " || R : " << (int) data[u] << " || Y : " << (int) frame->data[0][p_y] << " || U : " << (int) frame->data[1][corrID] << " || V : " <<
+//                         (int) frame->data[2][corrID] << endl;
+
+            u+=4;
+        }
+    }
+
+//        auto& sws_scaler_ctx = vr_state.sws_scaler_ctx;
+//        auto& av_codec_ctx = vr_state.av_codec_ctx;
+//        if (!sws_scaler_ctx) {
+//            auto source_pix_fmt = correct_for_deprecated_pixel_format(av_codec_ctx->pix_fmt);
+//            sws_scaler_ctx = sws_getContext(frame->width, frame->height, source_pix_fmt,
+//                                            frame->height, frame->width, AV_PIX_FMT_RGB0,
+//                                            SWS_BILINEAR, NULL, NULL, NULL);
+//        }
+//
+//        // uint8_t *dataBuffer = nullptr;
+//        uint8_t* dest[4] = { data, NULL, NULL, NULL };
+//        int dest_linesize[4] = { frame->width * 4, 0, 0, 0 };
+//        sws_scale(sws_scaler_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
+
+
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+    // Render whatever you want
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glBegin(GL_QUADS);
+    glTexCoord2d(0,0); glVertex2i(0, 0);
+    glTexCoord2d(1,0); glVertex2i(0 + width, 0);
+    glTexCoord2d(1,1); glVertex2i(0 + width, 0 + height);
+    glTexCoord2d(0,1); glVertex2i(0, 0 + height);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+    // }
+
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
@@ -518,8 +900,26 @@ int visualPass1 (){
     hostTest = (float*)malloc(numOfPixels*sizeof(float));
     hostRGCTests = (float*)malloc(numOfPixels*sizeof(float));
     layoutTest = (char*)malloc(numOfPixels*sizeof(char));
-    ::uint8_t *Y_1, *U_1, *V_1;
-    ::uint8_t *frameHolderHost, *pinnedTemp;
+    ::uint8_t *Y_1, *U_1, *V_1, *worldFrame, *perspFrame, *persp1;
+    ::uint8_t *frameHolderHost, *pinnedTemp, *perspHost;
+    PARAMS *testparams;
+
+    params.perspWidth = perspWidth;
+    params.perspHeight = perspHeight;
+    params.worldWidth = width;
+    params.worldHeight = height;
+    params.hoffset = 0;            // Horizontal offaxis amount as percentage for shift lens
+    params.voffset = 0;
+    params.antialias = 2;          // Supersampling antialiasing;
+    params.antialias2 = 4;
+    params.latmin = -M_PI/2;       // Support for a inset of an equirectangular
+    params.latmax = M_PI/2;
+    params.longmin = -M_PI;
+    params.longmax = M_PI;
+    params.perspfov = 90;
+//        params.transform = NULL;
+//        params.ntransform = 0;
+    params.debug = false;
 
     cudaDeviceProp a{};
     cudaSetDevice(0);
@@ -529,10 +929,16 @@ int visualPass1 (){
 
     cudaStream_t memStream1, memStream2, funcStream1, funcStream2 ;
 
+    params.testr = 89;
     cudaSetDevice(0);
     cudaStreamCreate ( &memStream1) ;
     cudaStreamCreate ( &funcStream1) ;
-    cudaMalloc(&Y_1, numOfPixels*sizeof(::uint8_t));
+    cudaMalloc(&Y_1, numOfPixels * sizeof(::uint8_t));
+    cudaMalloc(&worldFrame, numOfPixels * 4 * sizeof(::uint8_t));
+    cudaMalloc(&perspFrame, (perspHeight * perspWidth) * 4 * sizeof(::uint8_t));
+    cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(::uint8_t));
+    cudaMalloc(&testparams, sizeof(params));
+    cudaMalloc(&retinaDivs, 6 * sizeof(int));
     cudaMalloc(&rgcCurrents, numOfPixels*sizeof(float)); // RGC Currents are held here
     cudaMalloc(&rgcTests, numOfPixels*sizeof(float)); // RGC Indexes are held here
     cudaMalloc(&rgcLayout, numOfPixels*sizeof(char )); // RGC Layouts are held here
@@ -545,26 +951,56 @@ int visualPass1 (){
 
     // RGC Layout Creation
 
-    for (int i = 0; i < 1000000; i+=1){
-
-
-    }
+//    for (int i = 0; i < 1000000; i+=1){
+//
+//
+//    }
 
     // Begin main loop
+    CalcFrustum();
 
-    frameHolderHost = (uint8_t*)malloc(numOfPixels * sizeof(uint8_t));
 
-    int64_t pts;
-    AVFrame* frame = video_reader_read_frame(&vr_state, frame_data, &pts);
+    frameHolderHost = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
+    perspHost = (uint8_t*)malloc((perspHeight * perspWidth * 4) * sizeof(uint8_t));
+
+    // int64_t pts;
+    // AVFrame* frame = video_reader_read_frame(&vr_state, frame_data, &pts);
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
-    cudaMallocHost((void**)&frameHolderHost, bytes);
+    cudaMallocHost((void**)&frameHolderHost, bytes * 4);
     cudaMallocHost((void**)&hostTest, numOfPixels * sizeof(float));
     cudaMallocHost((void**)&hostRGCTests, numOfPixels * sizeof(float));
     cudaMallocHost((void**)&layoutTest, numOfPixels * sizeof(float));
+    cudaMallocHost((void**)&perspHost, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     vector<::uint8_t *> frameStorage;
     for (int fr = 0; fr < 9 ; fr+=1){
         frame = video_reader_read_frame(&vr_state, frame_data, &pts);
-        frameStorage.push_back(frame->data[0]);
+        u = 0, p_y = 0, p_uv = 0, corrID = 0;
+        for (int y = 0; y < frame->height; y++){
+            for (int x = 0; x < frame_width; x++){
+                p_y = (y * width) + x;
+
+                corrID = ((y/2) * frame->linesize[2]) + (x/2);
+
+                // R
+                data[u] = frame->data[0][p_y] + (1.370705 * (frame->data[2][corrID] - 128));
+
+                // G
+                data[u +1] = frame->data[0][p_y] - (0.337633 * (frame->data[1][corrID] - 128)) - (0.698001 * (frame->data[2][corrID] - 128));
+
+                // B
+                data[u +2] = frame->data[0][p_y] + 1.732446 * (frame->data[1][corrID] - 128);
+
+                // A
+                data[u + 3] = frame->data[0][p_y];
+//                if (x == 2 & y == 2)
+//                    cout << "rep : " << i << " || Height : " << y << " || p_y value : " << p_y << " || corrID : " << corrID <<
+//                         " || R : " << (int) data[u] << " || Y : " << (int) frame->data[0][p_y] << " || U : " << (int) frame->data[1][corrID] << " || V : " <<
+//                         (int) frame->data[2][corrID] << endl;
+
+                u+=4;
+            }
+        }
+        frameStorage.push_back(data);
         cout << fr << endl;
     }
     // ::memcpy(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t));
@@ -573,12 +1009,16 @@ int visualPass1 (){
 
     // --------------- Initial prep ----------------------
     cudaSetDevice(0);
-    cudaMemcpy(Y_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-    ::memcpy(frameHolderHost, frameStorage[7], numOfPixels*sizeof(::uint8_t));
+    cudaMemcpy(testparams, &params, sizeof(params), cudaMemcpyHostToDevice);
+    cudaMemcpy(retinaDivs, divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
+//    cudaMemcpy(Y_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
+//    cudaMemcpy(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
+//    cudaMemcpy(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
+    ::memcpy(frameHolderHost, frameStorage[7], numOfPixels * 4 * sizeof(::uint8_t));
 //            cudaMemcpyAsync(V_2, frame->data[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
     cudaDeviceSynchronize();
+
+    int frameStorageCountr = 0;
 
 // -----------------------------------------
 
@@ -588,31 +1028,39 @@ int visualPass1 (){
 
     float * y1;
     auto start = std::chrono::high_resolution_clock::now();
-
-    for(int i = 0; i < 1000; i+=1){
-
-        if(i%36 == 1){
-            ::memcpy(frameHolderHost, frameStorage[7], numOfPixels*sizeof(::uint8_t));
-            // Transfers data from Video array to local pinned memory
-            // cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
-            cudaSetDevice(0);
-            cudaMemcpyAsync(Y_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
-            cudaMemcpyAsync(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
-            cudaMemcpyAsync(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+    cudaMemcpyAsync(worldFrame, frameHolderHost, numOfPixels * 4 *sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+    cudaDeviceSynchronize();
+    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldFrame, perspFrame, testparams);
+    cudaDeviceSynchronize();
+    // world2PerspTest<<<((perspHeight * perspWidth * 4) + 1023)/1024, 1024, 0, funcStream1>>>(perspFrame, persp1);
+//    for(int i = 0; i < 1000; i+=1){
+//
+//        if(i%36 == 1){
+////            frame = video_reader_read_frame(&vr_state, frame_data, &pts);
+////            frameStorage.push_back(frame->data[0]);
+//            ::memcpy(frameHolderHost, frameStorage[frameStorageCountr], numOfPixels*sizeof(::uint8_t));
+//            // Transfers data from Video array to local pinned memory
+//            // cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
 //            cudaSetDevice(0);
-//            cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
-        }
-        if(i%36 == 35){
-            cudaSetDevice(0);
-            cudaDeviceSynchronize();
-            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(16592640, numOfPixels, frame_height, foveaWidth, paraLength, periLength, frame_width, Y_1, U_1, V_1, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side);
-            cudaDeviceSynchronize();
-        }
-
-        // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(0, numOfPixels, Y_1, U_1);
-
-        // cudaSetDevice(1);
-    }
+//            cudaMemcpyAsync(worldFrame, frameHolderHost, numOfPixels * 4 *sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+////            cudaMemcpyAsync(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+////            cudaMemcpyAsync(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+//            frameStorageCountr++;
+////            cudaSetDevice(0);
+////            cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
+//        }
+//        if(i%36 == 35){
+//            cudaSetDevice(0);
+//            cudaDeviceSynchronize();
+//            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(4145280, numOfPixels, frame_height, foveaWidth, paraLength, periLength, frame_width,
+//                                                                               worldFrame, perspFrame, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, retinaDivs);
+//            cudaDeviceSynchronize();
+//        }
+//
+//        // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(0, numOfPixels, Y_1, U_1);
+//
+//        // cudaSetDevice(1);
+//    }
 
     cudaSetDevice(0);
     cudaDeviceSynchronize();
@@ -627,12 +1075,17 @@ int visualPass1 (){
     // cout << (int) hostTest[2] << endl;
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(hostRGCTests, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
-    cout << hostTest[125176] << endl;
-    for(int i = 0; i < 790000; i +=1){
-        if(hostTest[i] != i){
-            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
-        }
-    }
+    cudaMemcpy(perspHost, perspFrame, numOfPixels*sizeof(uint8_t), cudaMemcpyDeviceToHost);
+    // cout << (int)perspHost[3] << endl;
+//    for(int i = 0; i < 350840; i +=1){
+////        if(hostTest[i] == -1){
+////            cout << ". ";
+////        } else cout << "x ";
+////        if (i % (((((foveaWidth) + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / divFactors[5]))) == 1) cout << endl;
+//        if(hostTest[i] != i){
+//            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
+//        }
+//    }
 
 
 
@@ -645,345 +1098,3 @@ int visualPass1 (){
 
 
 }
-
-//int mrain(vector<vector<float>> &gcuArr)
-//{
-//
-//    visualPass1();
-//    int N = 1<<27;
-//    int deviceCount;
-//    cudaGetDeviceCount(&deviceCount);
-//    for(int i = 0; i < 4; i+=1){
-//        vector<float> temp(1<<27, 5);
-//        gcuArr.push_back(temp);
-//    }
-//    gcuArr[0][401] = 7.99;
-//    gcuArr[1][401] = 4;
-//    gcuArr[2][401] = 8;
-//    gcuArr[3][401] = 12.42;
-//    float *d_1, *d_2, *d_3, *d_4;
-//
-//    cudaStream_t stream1, stream2, stream3, stream4 ;
-//
-//    cudaSetDevice(0);
-//    cudaStreamCreate ( &stream1) ;
-//    cudaStreamCreate ( &stream3) ;
-//    cudaMalloc(&d_1, N*sizeof(float));
-//    cudaMalloc(&d_2, N*sizeof(float));
-//    cudaSetDevice(1);
-//    cudaStreamCreate(&stream2);
-//    cudaStreamCreate ( &stream4) ;
-//    cudaMalloc(&d_3, N*sizeof(float));
-//    cudaMalloc(&d_4, N*sizeof(float));
-//
-////    for (int i = 0; i < deviceCount; i ++){
-////        cudaSetDevice(i);
-////        cudaMalloc(&d_x, N*sizeof(float));
-////    }
-//
-//
-////    cudaStreamCreate(&stream2);
-////    cudaStreamCreate ( &stream3) ;
-////    cudaStreamCreate ( &stream4) ;
-//
-//
-//    cudaSetDevice(0);
-//    cudaMemcpyAsync(d_1, gcuArr[0].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream1);
-//    cudaMemcpyAsync(d_2, gcuArr[1].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream1);
-//    cudaDeviceSynchronize();
-//    cudaSetDevice(1);
-//    cudaMemcpyAsync(d_3, gcuArr[2].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream2);
-//    cudaMemcpyAsync(d_4, gcuArr[3].data(), N*sizeof(float), cudaMemcpyHostToDevice, stream2);
-//    cudaDeviceSynchronize();
-//
-//
-//    auto start = std::chrono::high_resolution_clock::now();
-//
-//    for (int i = 0; i < 1000; i+=1){
-//        cudaSetDevice(0);
-//        saxpy<<<(N + 1023)/1024, 1024, 1024 * sizeof(double), stream1>>>(N, 2.0f, d_1, d_2);
-//        cudaSetDevice(1);
-//        saxpy<<<(N + 1023)/1024, 1024, 1024 * sizeof(double), stream2>>>(N, 2.0f, d_3, d_4);
-//        // cudaDeviceSynchronize();
-//    }
-//    cudaSetDevice(0);
-//    cudaDeviceSynchronize();
-//    cudaSetDevice(1);
-//    cudaDeviceSynchronize();
-//
-//    auto stop = std::chrono::high_resolution_clock::now();
-//    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-//    std::cout << "Time taken :         " << duration << endl;
-//
-//
-//    cudaSetDevice(0);
-//    cudaMemcpyAsync(gcuArr[0].data(), d_1, N*sizeof(float), cudaMemcpyDeviceToHost, stream1);
-//    cudaMemcpyAsync(gcuArr[1].data(), d_2, N*sizeof(float), cudaMemcpyDeviceToHost,stream1);
-//    cudaDeviceSynchronize();
-//    cudaSetDevice(1);
-//    cudaMemcpyAsync(gcuArr[2].data(), d_3, N*sizeof(float), cudaMemcpyDeviceToHost, stream2);
-//    cudaMemcpyAsync(gcuArr[3].data(), d_4, N*sizeof(float), cudaMemcpyDeviceToHost, stream2);
-//    cudaDeviceSynchronize();
-//
-//    cudaDeviceProp a{};
-//
-//    cudaGetDeviceProperties(&a, 0);
-//    cudaSetDevice(1);
-//    std::cout << "Number of devices :         " << deviceCount << endl;
-//    std::cout << "Device name :               " << a.name << endl;
-//    std::cout << "Test var 3 :                " << gcuArr[2][401] << endl;
-//
-//    float maxError = 0.0f;
-////    for (int i = 0; i < N; i++)
-////        maxError = max(maxError, abs(y[i]-4.0f));
-//    printf("Max error: %f\n", maxError);
-//
-//    cudaFree(d_1);
-//    cudaFree(d_2);
-//    cudaFree(d_3);
-//    cudaFree(d_4);
-//}
-//
-//int testFunct (){
-//    cudaProfilerStart();
-//    int N = 1 << 27;
-//    int deviceCount;
-//    cudaGetDeviceCount(&deviceCount);
-//    cout << N << endl;
-//
-//
-//
-//    float *aDest = (float*)malloc(N*sizeof(float));
-//    float *bDest = (float*)malloc(N*sizeof(float));
-//    float *cDest = (float*)malloc(N*sizeof(float));
-//    float *dDest = (float*)malloc(N*sizeof(float));
-//    float *aHost = (float*)malloc(N*sizeof(float));
-//    float *bHost = (float*)malloc(N*sizeof(float));
-//    float *cHost = (float*)malloc(N*sizeof(float));
-//    float *dHost = (float*)malloc(N*sizeof(float));
-////    vector<float[] > trial, hostMem;
-////    trial.push_back(aDest); trial.push_back(bDest);
-////    hostMem.push_back(aHost); hostMem.push_back(bHost);
-//    vector<cudaStream_t> memStream, functStream;
-//
-//    cudaMallocHost((void**)&aHost, N*sizeof(float));
-//    cudaMallocHost((void**)&bHost, N*sizeof(float));
-//    cudaMallocHost((void**)&cHost, N*sizeof(float));
-//    cudaMallocHost((void**)&dHost, N*sizeof(float));
-//    for(int i = 0; i < N; i+=1){
-//        aDest[i] =  i;
-//        bDest[i] =  (i - 2);
-//        cDest[i] =  i;
-//        dDest[i] =  (i - 2);
-//        aHost[i] =  2;
-//        bHost[i] =  67.83;
-//        cHost[i] =  2;
-//        dHost[i] =  67.83;
-//    }
-//
-//
-//    cudaStream_t stream1, stream2, stream3, stream4;
-//    for (int i = 0; i < deviceCount; i+=1){
-//        cudaStream_t temp;
-//        memStream.push_back(temp);
-//        cudaStream_t temp1;
-//        functStream.push_back(temp1);
-//        cudaSetDevice(i);
-//        cudaStreamCreate(&memStream[i]);
-//        cudaStreamCreate(&functStream[i]);
-//    }
-//    cudaSetDevice(0);
-//    cudaStreamCreate(&stream1);
-//    cudaStreamCreate(&stream3);
-//    cudaMalloc(&aDest, N * sizeof(float));
-//    cudaMalloc(&bDest, N * sizeof(float));
-//    cudaSetDevice(1);
-//    cudaStreamCreate(&stream2);
-//    cudaStreamCreate(&stream4);
-//    cudaMalloc(&cDest, N * sizeof(float));
-//    cudaMalloc(&dDest, N * sizeof(float));
-//
-//
-//    auto start = std::chrono::high_resolution_clock::now();
-////    std::vector<std::thread> threads;
-////
-////    for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
-////    {
-////        threads.push_back (std::thread ([&,device_id] () {
-////            cudaSetDevice (device_id);
-////            if(device_id == 0){
-////                for(int i = 0; i < 1000; i +=1){
-////                    if((i % 36 == 1) || (i == 1)) {
-////              cudaMemcpyAsync(bDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[0]);
-////              cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[0]);
-////                    }
-////              eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[0]>>>(0, 0, aDest, bDest);
-////                    // cudaStreamSynchronize(stream3);
-////                }
-////
-////                // cudaDeviceSynchronize();
-////                // cudaMemcpyAsync(frameStorage[4], oneGuy, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost, stream1);
-////                // cudaStreamSynchronize(stream1);
-////            } else if(device_id == 1){
-////                for(int i = 0; i < 1000; i +=1){
-////                    if((i % 36 == 1) || (i == 1)) {
-////                cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[1]);
-////                //cudaMemcpyAsync(dDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, memStream[1]);
-////                    }
-////                    // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream4>>>(0, numOfPixels, Y_2,U_2);
-////                    // cudaStreamSynchronize(stream4);
-////                }
-////            }
-////        }));
-////    }
-////    for (auto &thread: threads)
-////        thread.join ();
-//
-//    for(int i = 0; i < 2; i++){
-//        cudaSetDevice(0);
-//        cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
-//        cudaMemcpyAsync(bDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
-//        cudaSetDevice(1);
-//        cudaMemcpyAsync(cDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
-//        // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
-//
-////        cudaStreamSynchronize(stream1);
-////        cudaStreamSynchronize(stream2);
-////        cudaStreamSynchronize(stream3);
-////        cudaStreamSynchronize(stream4);
-////        cudaSetDevice(0);
-////        eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[0]>>>(0, 0, aDest, bDest);
-////        cudaSetDevice(1);
-////        eye1Pipeline<<<(N+1023)/1024, 1024, 0, functStream[1]>>>(0, 0, cDest, dDest);
-//
-//    }
-////#pragma omp parallel for num_threads(2)
-////    for(int i = 0; i < 2; i++){
-////        cudaSetDevice(i);
-////        if(i == 0) {
-////            for(int j = 0; j < 2; j++){
-////                cudaMemcpyAsync(aDest, aHost, N* sizeof(float), cudaMemcpyHostToDevice, stream1);
-////                cudaMemcpyAsync(bDest, bHost, N* sizeof(float), cudaMemcpyHostToDevice, stream3);
-////            }
-////        } else if(i == 1){
-////            for(int j = 0; j < 2; j++){
-////                cudaMemcpyAsync(cDest, cHost, N* sizeof(float), cudaMemcpyHostToDevice,stream2);
-////                // cudaMemcpyAsync(dDest, dHost, N* sizeof(float), cudaMemcpyHostToDevice, stream4);
-////            }
-////        }
-////
-////    }
-//
-////    cudaStreamSynchronize(stream1);
-////    cudaStreamSynchronize(stream2);
-////    cudaStreamSynchronize(stream3);
-////    cudaStreamSynchronize(stream4);
-//
-//
-//    auto stop = std::chrono::high_resolution_clock::now();
-//    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-//    cout << "Net duration of visual pass : " << duration << endl;
-//
-////    cout << aHost[2] << endl;
-////    cudaSetDevice(0);
-////    cudaMemcpyAsync(aHost, aDest, N* sizeof(float), cudaMemcpyDeviceToHost, stream1);
-////    cudaMemcpyAsync(bHost, bDest, N* sizeof(float), cudaMemcpyDeviceToHost, stream1);
-////    cudaStreamSynchronize(stream1);
-////
-////    cout << aHost[2] << endl;
-//
-////    cudaFreeHost(aHost);
-////    cudaFreeHost(bHost);
-////    cudaFreeHost(cHost);
-////    cudaFreeHost(dHost);
-//    cudaFree(aDest);
-//    cudaFree(bDest);
-//    cudaProfilerStop();
-//    cudaDeviceReset();
-//}
-
-// ---------------- Rough Pad ------------------------
-
-//    for (unsigned int device_id = 0; device_id < deviceCount; device_id++)
-//    {
-//        threads.push_back (std::thread ([&,device_id] () {
-//            cudaSetDevice (device_id);
-//            if(device_id == 0){
-//                for(int i = 0; i < 1000; i +=1){
-//                    if((i % 36 == 1) || (i == 1)) {
-//                        cudaMemcpyAsync(Y_1, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
-//                                        stream1);
-//                        cudaMemcpyAsync(U_1, frameStorage[1], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
-//                                        stream1);
-//                        //cudaStreamSynchronize(stream1);
-//                    }
-//                    // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream3>>>(0, numOfPixels, oneGuy);
-//                    // cudaStreamSynchronize(stream3);
-//                }
-//
-//                // cudaDeviceSynchronize();
-//                // cudaMemcpyAsync(frameStorage[4], oneGuy, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost, stream1);
-//                // cudaStreamSynchronize(stream1);
-//            } else if(device_id == 1){
-//                for(int i = 0; i < 1000; i +=1){
-//                    if((i % 36 == 1) || (i == 1)) {
-//                        cudaMemcpyAsync(Y_2, frameStorage[2], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
-//                                        stream2);
-//                        cudaMemcpyAsync(U_2, frameStorage[3], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice,
-//                                        stream2);
-//                        //cudaStreamSynchronize(stream2);
-//                    }
-//                    // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream4>>>(0, numOfPixels, Y_2,U_2);
-//                    // cudaStreamSynchronize(stream4);
-//                }
-//            }
-//        }));
-//    }
-//    for (auto &thread: threads)
-//        thread.join ();
-//    for (int milliCount = 0; milliCount < 100; milliCount+=1){
-////        int64_t pts;
-////        AVFrame* frame;
-//
-//        //if((milliCount % 36 == 1) || (milliCount == 1)){
-//            //           frame = video_reader_read_frame(&vr_state, frame_data, &pts);
-//            // ::memcpy(pinnedTemp, frameStorage[frameIndex], 6); frameIndex+=1;
-//            cudaSetDevice(0);
-//            cudaMemcpyAsync(Y_1, frameStorage[0], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream1);
-//            cudaMemcpyAsync(U_1, frameStorage[1], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream1);
-////            cudaMemcpyAsync(V_1, frame->data[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream1);
-//            // cudaDeviceSynchronize();
-//            cudaSetDevice(1);
-//             cudaMemcpyAsync(Y_2, frameStorage[2], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream2);
-//            cudaMemcpyAsync(U_2, frameStorage[3], numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, stream2);
-////            cudaMemcpyAsync(V_2, frame->data[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
-//            // cudaDeviceSynchronize();
-//        //}
-////        if(milliCount % 36 == 35){
-////            cudaSetDevice(0);
-////            cudaStreamSynchronize(stream1);
-////            cudaSetDevice(1);
-////            cudaStreamSynchronize(stream2);
-////        }
-//
-////        cudaSetDevice(0);
-////        eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream3>>>(0, numOfPixels, nullptr, nullptr);
-////        cudaStreamSynchronize(stream3);
-////        cudaSetDevice(1);
-////        eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, stream4>>>(0, numOfPixels, nullptr, nullptr);
-////        cudaStreamSynchronize(stream4);
-//
-////        if((milliCount % 36 == 1) || (milliCount == 1)){
-////            cudaSetDevice(0);
-////            cudaMemcpyAsync(frame->data[0], Y_1, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost, stream1);
-////            cudaMemcpyAsync(frame->data[1], U_1, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
-//////            cudaMemcpyAsync(frame->data[2], V_1, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
-////            // cudaStreamSynchronize(stream1);
-////            cudaSetDevice(1);
-////            cudaMemcpyAsync(frame->data[0], Y_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost, stream2);
-////            cudaMemcpyAsync(frame->data[1], U_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream2);
-//////            cudaMemcpyAsync(frame->data[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
-////            // cudaStreamSynchronize(stream2);
-////        }
-//
-//    }
