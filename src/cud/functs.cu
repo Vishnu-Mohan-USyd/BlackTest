@@ -173,10 +173,10 @@ void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS deviceParam
 
         }
     }
-    perspFrame[(i * 4)] = top_left_x;
-    perspFrame[(i * 4) + 1] = 2;
-    perspFrame[(i * 4) + 2] = 3;
-    perspFrame[(i * 4) + 3] = 4;
+    perspFrame[(i * 4)] = rgbsum.r / deviceParams.antialias2;
+    perspFrame[(i * 4) + 1] = rgbsum.g / deviceParams.antialias2;
+    perspFrame[(i * 4) + 2] = rgbsum.b / deviceParams.antialias2;
+    perspFrame[(i * 4) + 3] = rgbsum.a / deviceParams.antialias2;
     // testboy.testr = 56;
     // perspFrame[i] = deviceParams->testr;
 
