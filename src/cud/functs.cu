@@ -73,35 +73,35 @@ void CalcFrustum(void)
 }
 
 __device__
-XYZ CameraRay(double x,double y, PARAMS *deviceParams, FRUSTUM frust)
+XYZ CameraRay(double x,double y, PARAMS deviceParams, FRUSTUM frust)
 {
     int k;
     double u,v;
     XYZ p,q;
 
-    u = (double)x / deviceParams->perspWidth;
-    v = (double)(deviceParams->perspHeight - (double)y) / (double)deviceParams->perspHeight;
+    u = (double)x / deviceParams.perspWidth;
+    v = (double)(deviceParams.perspHeight - (double)y) / (double)deviceParams.perspHeight;
 
     p.x = frust.p1.x + u * (frust.p4.x - frust.p1.x);
     p.y = frust.p1.y;
     p.z = frust.p1.z + v * (frust.p2.z - frust.p1.z);
 
-    // Apply rotations
-    for (k=0;k<deviceParams->ntransform;k++) {
-        switch(deviceParams->transform[k].axis) {
+     // Apply rotations
+    for (k=0;k<deviceParams.ntransform;k++) {
+        switch(deviceParams.transform[k].axis) {
             case XTILT:
                 q.x =  p.x;
-                q.y =  p.y * deviceParams->transform[k].cvalue + p.z * deviceParams->transform[k].svalue;
-                q.z = -p.y * deviceParams->transform[k].svalue + p.z * deviceParams->transform[k].cvalue;
+                q.y =  p.y * deviceParams.transform[k].cvalue + p.z * deviceParams.transform[k].svalue;
+                q.z = -p.y * deviceParams.transform[k].svalue + p.z * deviceParams.transform[k].cvalue;
                 break;
             case YROLL:
-                q.x =  p.x * deviceParams->transform[k].cvalue + p.z * deviceParams->transform[k].svalue;
+                q.x =  p.x * deviceParams.transform[k].cvalue + p.z * deviceParams.transform[k].svalue;
                 q.y =  p.y;
-                q.z = -p.x * deviceParams->transform[k].svalue + p.z * deviceParams->transform[k].cvalue;
+                q.z = -p.x * deviceParams.transform[k].svalue + p.z * deviceParams.transform[k].cvalue;
                 break;
             case ZPAN:
-                q.x =  p.x * deviceParams->transform[k].cvalue + p.y * deviceParams->transform[k].svalue;
-                q.y = -p.x * deviceParams->transform[k].svalue + p.y * deviceParams->transform[k].cvalue;
+                q.x =  p.x * deviceParams.transform[k].cvalue + p.y * deviceParams.transform[k].svalue;
+                q.y = -p.x * deviceParams.transform[k].svalue + p.y * deviceParams.transform[k].cvalue;
                 q.z =  p.z;
                 break;
         }
@@ -123,37 +123,41 @@ XYZ VectorSum(double d1,XYZ p1,double d2,XYZ p2,double d3,XYZ p3,double d4,XYZ p
 }
 
 __global__
-void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS *deviceParams, FRUSTUM deviceFrust, double testr)
+void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS deviceParams, FRUSTUM deviceFrust, TRANSFORM *testTrans)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    int x = i % deviceParams->perspWidth;
-    int y = i / deviceParams->perspWidth;
+    int x = i % deviceParams.perspWidth;
+    int y = i / deviceParams.perspWidth;
+
+
+
+
     RGB rgbsum = {0,0,0, 0};
     XYZ par;
     double longitude, latitude, xAlias, yAlias, x_sphere, y_sphere;
     int top_left_x, top_left_y, spIndex;
 
 
-    for (int ai=0;ai<deviceParams->antialias;ai++) {
-        xAlias = x + ai / (double)deviceParams->antialias;
-        for (int aj=0;aj<deviceParams->antialias;aj++) {
-            yAlias = y + aj / (double) deviceParams->antialias;
+    for (int ai=0;ai<deviceParams.antialias;ai++) {
+        xAlias = x + ai / (double)deviceParams.antialias;
+        for (int aj=0;aj<deviceParams.antialias;aj++) {
+            yAlias = y + aj / (double) deviceParams.antialias;
             par = CameraRay((double) xAlias, (double) yAlias, deviceParams, deviceFrust);
             longitude = atan2(par.x, par.y);                     // -pi ... pi
             latitude = atan2(par.z, sqrt(par.x * par.x + par.y * par.y));    // -pi/2 ... pi/2
-            x_sphere = (longitude - deviceParams->longmin) * deviceParams->worldWidth /
-                       (deviceParams->longmax - deviceParams->longmin);
-            y_sphere = (latitude - deviceParams->latmin) * deviceParams->worldHeight /
-                       (deviceParams->latmax - deviceParams->latmin);
+            x_sphere = (longitude - deviceParams.longmin) * deviceParams.worldWidth /
+                       (deviceParams.longmax - deviceParams.longmin);
+            y_sphere = (latitude - deviceParams.latmin) * deviceParams.worldHeight /
+                       (deviceParams.latmax - deviceParams.latmin);
             if (x_sphere < 0 || y_sphere < 0)
                 continue;
-            if (y_sphere >= deviceParams->worldHeight)
+            if (y_sphere >= deviceParams.worldHeight)
                 continue;
 
-            if (x_sphere >= deviceParams->worldWidth) {
-                if (deviceParams->longmin == -M_PI && deviceParams->longmax == M_PI)
-                    x_sphere -= deviceParams->worldWidth;
+            if (x_sphere >= deviceParams.worldWidth) {
+                if (deviceParams.longmin == -M_PI && deviceParams.longmax == M_PI)
+                    x_sphere -= deviceParams.worldWidth;
                 else
                     continue;
             }
@@ -161,7 +165,7 @@ void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS *devicePara
             top_left_x = (int) x_sphere;
             top_left_y = (int) y_sphere;
 
-            spIndex = (top_left_y * deviceParams->worldWidth * 4) + (top_left_x * 4);
+            spIndex = (top_left_y * deviceParams.worldWidth * 4) + (top_left_x * 4);
             rgbsum.r += worldFrame[spIndex];
             rgbsum.g += worldFrame[spIndex + 1];
             rgbsum.b += worldFrame[spIndex + 2];
@@ -170,10 +174,10 @@ void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS *devicePara
         }
     }
     perspFrame[(i * 4)] = top_left_x;
-    perspFrame[(i * 4) + 1] = top_left_x;
-    perspFrame[(i * 4) + 2] = top_left_x;
-    perspFrame[(i * 4) + 3] = top_left_x;
-    // testboy->testr = 56;
+    perspFrame[(i * 4) + 1] = 2;
+    perspFrame[(i * 4) + 2] = 3;
+    perspFrame[(i * 4) + 3] = 4;
+    // testboy.testr = 56;
     // perspFrame[i] = deviceParams->testr;
 
 }
@@ -908,6 +912,7 @@ int visualPass1 (){
     double *perspHost, *perspFrame, *persp1;
     PARAMS *testparams;
     FRUSTUM testFrust;
+    TRANSFORM *devTrans;
 
     params.perspWidth = perspWidth;
     params.perspHeight = perspHeight;
@@ -926,6 +931,16 @@ int visualPass1 (){
         params.ntransform = 0;
     params.debug = false;
 
+    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
+                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
+    params.transform[params.ntransform].axis = ZPAN;
+    params.transform[params.ntransform].value = (M_PI / 180)*(40);
+    params.ntransform++;
+    for (int j=0;j<params.ntransform;j++) {
+        params.transform[j].cvalue = cos(params.transform[j].value);
+        params.transform[j].svalue = sin(params.transform[j].value);
+    }
+
     cudaDeviceProp a{};
     cudaSetDevice(0);
     cudaGetDeviceProperties(&a, 0);
@@ -936,9 +951,10 @@ int visualPass1 (){
 
     CalcFrustum();
 
+    int nOS = 1000000;
     //----------------------------------------------------------
 
-    
+
 
     //----------------------------------------------------------
     cudaSetDevice(0);
@@ -948,8 +964,7 @@ int visualPass1 (){
     cudaMalloc(&worldFrame, numOfPixels * 4 * sizeof(::uint8_t));
     cudaMalloc(&perspFrame, (perspHeight * perspWidth) * 4 * sizeof(double));
     cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(double));
-    cudaMalloc(&testparams, sizeof(params));
-    // cudaMalloc(testFrust, sizeof(frustum));
+    cudaMalloc(&devTrans, params.ntransform * sizeof(TRANSFORM));
     cudaMalloc(&retinaDivs, 6 * sizeof(int));
     cudaMalloc(&rgcCurrents, numOfPixels*sizeof(float)); // RGC Currents are held here
     cudaMalloc(&rgcTests, numOfPixels*sizeof(float)); // RGC Indexes are held here
@@ -1023,15 +1038,16 @@ int visualPass1 (){
 
     // --------------- Initial prep ----------------------
     cudaSetDevice(0);
-    cudaMemcpy(testparams, &params, sizeof(params), cudaMemcpyHostToDevice);
-    // cudaMemcpy(testFrust, &frustum, sizeof(frustum), cudaMemcpyHostToDevice);
+    cudaMemcpy(devTrans, params.transform, params.ntransform * sizeof(TRANSFORM), cudaMemcpyHostToDevice);
     cudaMemcpy(retinaDivs, divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
 //    cudaMemcpy(Y_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
 //    cudaMemcpy(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
 //    cudaMemcpy(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
     ::memcpy(frameHolderHost, frameStorage[7], numOfPixels * 4 * sizeof(::uint8_t));
 //            cudaMemcpyAsync(V_2, frame->data[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
+
     cudaDeviceSynchronize();
+    params.transform = devTrans;
 
     int frameStorageCountr = 0;
 
@@ -1045,8 +1061,8 @@ int visualPass1 (){
     auto start = std::chrono::high_resolution_clock::now();
     cudaMemcpyAsync(worldFrame, frameHolderHost, numOfPixels * 4 *sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
     cudaDeviceSynchronize();
-    cout << "Frustum value : " << frustum.p1.x << endl;
-    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldFrame, perspFrame, testparams, frustum, frustum.p1.x);
+    cout << "Frustum value : " << params.ntransform << endl;
+    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldFrame, perspFrame, params, frustum, devTrans);
     cudaDeviceSynchronize();
     // world2PerspTest<<<((perspHeight * perspWidth * 4) + 1023)/1024, 1024, 0, funcStream1>>>(perspFrame, persp1);
 //    for(int i = 0; i < 1000; i+=1){
