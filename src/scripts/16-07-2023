@@ -173,7 +173,7 @@ void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS deviceParam
 
         }
     }
-    perspFrame[(i * 4)] = deviceParams.transform[0].cvalue;
+    perspFrame[(i * 4)] = top_left_x;
     perspFrame[(i * 4) + 1] = 2;
     perspFrame[(i * 4) + 2] = 3;
     perspFrame[(i * 4) + 3] = 4;
@@ -1108,7 +1108,7 @@ int visualPass1 (){
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(hostRGCTests, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(perspHost, perspFrame, (perspHeight * perspWidth * 4 ) * sizeof(double), cudaMemcpyDeviceToHost);
-    cout << perspHost[4] << endl;
+    cout << perspHost[15760] << endl;
 //    for(int i = 0; i < 350840; i +=1){
 ////        if(hostTest[i] == -1){
 ////            cout << ". ";
