@@ -86,7 +86,7 @@ XYZ CameraRay(double x,double y, PARAMS deviceParams, FRUSTUM frust)
     p.y = frust.p1.y;
     p.z = frust.p1.z + v * (frust.p2.z - frust.p1.z);
 
-     // Apply rotations
+    // Apply rotations
     for (k=0;k<deviceParams.ntransform;k++) {
         switch(deviceParams.transform[k].axis) {
             case XTILT:
@@ -202,7 +202,7 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL, int perL, int frameW, ::uint8_t  *worldFrame, ::uint8_t  *perspFrame, float *rgc, float *rgcTestr, char *rgcLay, int oz1up, int oz1side, int oz2up, int oz2side, int oz3up, int oz3side, int* retDivs)
+void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL, int perL, int frameW, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgc, float *rgcTestr, char *rgcLay, int oz1up, int oz1side, int oz2up, int oz2side, int oz3up, int oz3side, int* retDivs)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -266,13 +266,13 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         // rgc[2] = 1;
         int RGCoffset = 0;
         int sectionWidth = fovWidth;
-        float c1 = ((float)perspFrame[i])/255;
-        float c2 = ((0.125 * (float)perspFrame[(i - frameW) - 1]) + (0.125 * (float)perspFrame[(i - frameW)]) + (0.125 * (float)perspFrame[(i - frameW) + 1]) +
-                    (0.125 * (float)perspFrame[(i) - 1]) + (0.125 * (float)perspFrame[(i) + 1]) +
-                    (0.125 * (float)perspFrame[(i + frameW) - 1]) + (0.125 * (float)perspFrame[(i + frameW)]) + (0.125 * (float)perspFrame[(i + frameW) + 1]))/255;
-        float res  = c1 - c2;
+        float midLeft = ((float)perspLeft[i]) / 255;
+        float surLeft = ((0.125 * (float)perspLeft[(i - frameW) - 1]) + (0.125 * (float)perspLeft[(i - frameW)]) + (0.125 * (float)perspLeft[(i - frameW) + 1]) +
+                         (0.125 * (float)perspLeft[(i) - 1]) + (0.125 * (float)perspLeft[(i) + 1]) +
+                         (0.125 * (float)perspLeft[(i + frameW) - 1]) + (0.125 * (float)perspLeft[(i + frameW)]) + (0.125 * (float)perspLeft[(i + frameW) + 1])) / 255;
+        float res  = midLeft - surLeft;
         if(index < 0) res = -1;
-        else res  = c1 - c2;
+        else res  = midLeft - surLeft;
         if(res < 0) res = 0;
 
         // Converting from 2D modelled frame to linear RGC array
@@ -305,13 +305,13 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
 //        else if ((currY >= (fovY - (149))) && (currY <= (fovY + (149))))
 //            sectionWidth = 201;
 
-        float c1 = ((float)perspFrame[i])/255;
-        float c2 = ((0.125 * (float)perspFrame[(i - frameW) - 1]) + (0.125 * (float)perspFrame[(i - frameW)]) + (0.125 * (float)perspFrame[(i - frameW) + 1]) +
-                    (0.125 * (float)perspFrame[(i) - 1]) + (0.125 * (float)perspFrame[(i) + 1]) +
-                    (0.125 * (float)perspFrame[(i + frameW) - 1]) + (0.125 * (float)perspFrame[(i + frameW)]) + (0.125 * (float)perspFrame[(i + frameW) + 1]))/255;
-        float res  = c1 - c2;
+        float midLeft = ((float)perspLeft[i])/255;
+        float surLeft = ((0.125 * (float)perspLeft[(i - frameW) - 1]) + (0.125 * (float)perspLeft[(i - frameW)]) + (0.125 * (float)perspLeft[(i - frameW) + 1]) +
+                         (0.125 * (float)perspLeft[(i) - 1]) + (0.125 * (float)perspLeft[(i) + 1]) +
+                         (0.125 * (float)perspLeft[(i + frameW) - 1]) + (0.125 * (float)perspLeft[(i + frameW)]) + (0.125 * (float)perspLeft[(i + frameW) + 1]))/255;
+        float res  = midLeft - surLeft;
         if(index < 0) res = -1;
-        else res  = c1 - c2;
+        else res  = midLeft - surLeft;
         // rgc[90001] = 2;
         // The ParaComputationalUnits;
         int compIndex = 0;
@@ -381,13 +381,13 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
-        float c2 = ((0.08 * (float)perspFrame[(i - frameW) - 1]) + (0.08 * (float)perspFrame[(i - frameW)]) + (0.08 * (float)perspFrame[(i - frameW) + 1]) + (0.08 * (float)perspFrame[(i - frameW) + 2]) +
-                    (0.08 * (float)perspFrame[(i) - 1]) + (0.08 * (float)perspFrame[(i) + 2]) + (0.08 * (float)perspFrame[(i) + frameW - 1]) + (0.08 * (float)perspFrame[(i) + frameW + 2]) +
-                    (0.08 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.08 * (float)perspFrame[(i + (2 * frameW))]) + (0.08 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.08 * (float)perspFrame[(i + (2 * frameW)) + 2]))/255;
-        float res  = c1 - c2;
+        float midLeft = (0.25 * (((float)perspLeft[i])/255)) + (0.25 * (((float)perspLeft[i + 1])/255)) + (0.25 * (((float)perspLeft[i + frameW])/255)) + (0.25 * (((float)perspLeft[i + frameW + 1])/255));
+        float surLeft = ((0.08 * (float)perspLeft[(i - frameW) - 1]) + (0.08 * (float)perspLeft[(i - frameW)]) + (0.08 * (float)perspLeft[(i - frameW) + 1]) + (0.08 * (float)perspLeft[(i - frameW) + 2]) +
+                         (0.08 * (float)perspLeft[(i) - 1]) + (0.08 * (float)perspLeft[(i) + 2]) + (0.08 * (float)perspLeft[(i) + frameW - 1]) + (0.08 * (float)perspLeft[(i) + frameW + 2]) +
+                         (0.08 * (float)perspLeft[(i + (2 * frameW)) - 1]) + (0.08 * (float)perspLeft[(i + (2 * frameW))]) + (0.08 * (float)perspLeft[(i + (2 * frameW)) + 1]) + (0.08 * (float)perspLeft[(i + (2 * frameW)) + 2]))/255;
+        float res  = midLeft - surLeft;
         if(index < 0) res = -1;
-        else res  = c1 - c2;
+        else res  = midLeft - surLeft;
 
 
         int compIndex = 0;
@@ -458,15 +458,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
-        float c2 = ((0.03 * (float)perspFrame[(i - (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW))]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 3]) +
-                    (0.03 * (float)perspFrame[(i - frameW) - 2]) + (0.03 * (float)perspFrame[(i - frameW) - 1]) + (0.03 * (float)perspFrame[(i - frameW)]) + (0.03 * (float)perspFrame[(i - frameW) + 1]) + (0.03 * (float)perspFrame[(i - frameW) + 2]) + (0.03 * (float)perspFrame[(i - frameW) + 3]) +
-                    (0.03 * (float)perspFrame[(i) - 2])  + (0.03 * (float)perspFrame[(i) - 1]) + (0.03 * (float)perspFrame[(i) + 2]) + (0.03 * (float)perspFrame[(i) + 3]) + (0.03 * (float)perspFrame[(i) + frameW - 2]) + (0.03 * (float)perspFrame[(i) + frameW - 1]) + (0.03 * (float)perspFrame[(i) + frameW + 2]) + (0.03 * (float)perspFrame[(i) + frameW + 3]) +
-                    (0.03 * (float)perspFrame[(i + (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW))]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 3]) +
-                    (0.03 * (float)perspFrame[(i + (3 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW))]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 3]))/255;
-        float res  = c1 - c2;
+        float midLeft = (0.25 * (((float)perspLeft[i])/255)) + (0.25 * (((float)perspLeft[i + 1])/255)) + (0.25 * (((float)perspLeft[i + frameW])/255)) + (0.25 * (((float)perspLeft[i + frameW + 1])/255));
+        float surLeft = ((0.03 * (float)perspLeft[(i - (2 * frameW)) - 2]) + (0.03 * (float)perspLeft[(i - (2 * frameW)) - 1]) + (0.03 * (float)perspLeft[(i - (2 * frameW))]) + (0.03 * (float)perspLeft[(i - (2 * frameW)) + 1]) + (0.03 * (float)perspLeft[(i - (2 * frameW)) + 2]) + (0.03 * (float)perspLeft[(i - (2 * frameW)) + 3]) +
+                         (0.03 * (float)perspLeft[(i - frameW) - 2]) + (0.03 * (float)perspLeft[(i - frameW) - 1]) + (0.03 * (float)perspLeft[(i - frameW)]) + (0.03 * (float)perspLeft[(i - frameW) + 1]) + (0.03 * (float)perspLeft[(i - frameW) + 2]) + (0.03 * (float)perspLeft[(i - frameW) + 3]) +
+                         (0.03 * (float)perspLeft[(i) - 2])  + (0.03 * (float)perspLeft[(i) - 1]) + (0.03 * (float)perspLeft[(i) + 2]) + (0.03 * (float)perspLeft[(i) + 3]) + (0.03 * (float)perspLeft[(i) + frameW - 2]) + (0.03 * (float)perspLeft[(i) + frameW - 1]) + (0.03 * (float)perspLeft[(i) + frameW + 2]) + (0.03 * (float)perspLeft[(i) + frameW + 3]) +
+                         (0.03 * (float)perspLeft[(i + (2 * frameW)) - 2]) + (0.03 * (float)perspLeft[(i + (2 * frameW)) - 1]) + (0.03 * (float)perspLeft[(i + (2 * frameW))]) + (0.03 * (float)perspLeft[(i + (2 * frameW)) + 1]) + (0.03 * (float)perspLeft[(i + (2 * frameW)) + 2]) + (0.03 * (float)perspLeft[(i + (2 * frameW)) + 3]) +
+                         (0.03 * (float)perspLeft[(i + (3 * frameW)) - 2]) + (0.03 * (float)perspLeft[(i + (3 * frameW)) - 1]) + (0.03 * (float)perspLeft[(i + (3 * frameW))]) + (0.03 * (float)perspLeft[(i + (3 * frameW)) + 1]) + (0.03 * (float)perspLeft[(i + (3 * frameW)) + 2]) + (0.03 * (float)perspLeft[(i + (3 * frameW)) + 3]))/255;
+        float res  = midLeft - surLeft;
         if(index < 0) res = -1;
-        else res  = c1 - c2;
+        else res  = midLeft - surLeft;
 
         int compIndex = 0;
 
@@ -541,15 +541,40 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
-        float c2 = ((0.03 * (float)perspFrame[(i - (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW))]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 3]) +
-                    (0.03 * (float)perspFrame[(i - frameW) - 2]) + (0.03 * (float)perspFrame[(i - frameW) - 1]) + (0.03 * (float)perspFrame[(i - frameW)]) + (0.03 * (float)perspFrame[(i - frameW) + 1]) + (0.03 * (float)perspFrame[(i - frameW) + 2]) + (0.03 * (float)perspFrame[(i - frameW) + 3]) +
-                    (0.03 * (float)perspFrame[(i) - 2])  + (0.03 * (float)perspFrame[(i) - 1]) + (0.03 * (float)perspFrame[(i) + 2]) + (0.03 * (float)perspFrame[(i) + 3]) + (0.03 * (float)perspFrame[(i) + frameW - 2]) + (0.03 * (float)perspFrame[(i) + frameW - 1]) + (0.03 * (float)perspFrame[(i) + frameW + 2]) + (0.03 * (float)perspFrame[(i) + frameW + 3]) +
-                    (0.03 * (float)perspFrame[(i + (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW))]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 3]) +
-                    (0.03 * (float)perspFrame[(i + (3 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW))]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 3]))/255;
-        float res  = c1 - c2;
+        float midLeft = (0.11111111 * (((float)perspLeft[i - frameW - 1])/255)) + (0.11111111 * (((float)perspLeft[i - frameW])/255)) + (0.11111111 * (((float)perspLeft[i - frameW + 1])/255)) +
+                (0.11111111 * (((float)perspLeft[i - 1])/255)) + (0.11111111 * (((float)perspLeft[i])/255)) + (0.11111111 * (((float)perspLeft[i + 1])/255)) +
+                (0.11111111 * (((float)perspLeft[i + frameW - 1])/255)) + (0.11111111 * (((float)perspLeft[i + frameW])/255)) + (0.11111111 * (((float)perspLeft[i + frameW + 1])/255));
+        float surLeft = (
+                // center - 4 layer (Row 1)
+                (0.013889 * (float)perspLeft[(i - (4 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i - (4 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i - (4 * frameW)) - 2]) + (0.013889 * (float)perspLeft[(i - (4 * frameW)) - 1]) + (0.013889 * (float)perspLeft[(i - (4 * frameW))]) +
+                (0.013889 * (float)perspLeft[(i - (4 * frameW)) + 1]) + (0.013889 * (float)perspLeft[(i - (4 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i - (4 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i - (4 * frameW)) + 4]) +
+                // center - 3 layer (Row 2)
+                (0.013889 * (float)perspLeft[(i - (3 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i - (3 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i - (3 * frameW)) - 2]) + (0.013889 * (float)perspLeft[(i - (3 * frameW)) - 1]) + (0.013889 * (float)perspLeft[(i - (3 * frameW))]) +
+                (0.013889 * (float)perspLeft[(i - (3 * frameW)) + 1]) + (0.013889 * (float)perspLeft[(i - (3 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i - (3 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i - (3 * frameW)) + 4]) +
+                // center - 2 layer (Row 3)
+                (0.013889 * (float)perspLeft[(i - (2 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i - (2 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i - (2 * frameW)) - 2]) + (0.013889 * (float)perspLeft[(i - (2 * frameW)) - 1]) + (0.013889 * (float)perspLeft[(i - (2 * frameW))]) +
+                (0.013889 * (float)perspLeft[(i - (2 * frameW)) + 1]) + (0.013889 * (float)perspLeft[(i - (2 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i - (2 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i - (2 * frameW)) + 4]) +
+                // center - 1 layer (Row 4)
+                (0.013889 * (float)perspLeft[(i - (1 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i - (1 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i - (1 * frameW)) - 2]) +
+                (0.013889 * (float)perspLeft[(i - (1 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i - (1 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i - (1 * frameW)) + 4]) +
+                // Center layer (Row 5)
+                (0.013889 * (float)perspLeft[i - 4]) + (0.013889 * (float)perspLeft[i  - 3]) + (0.013889 * (float)perspLeft[i - 2]) +
+                (0.013889 * (float)perspLeft[i  + 2]) + (0.013889 * (float)perspLeft[i + 3]) + (0.013889 * (float)perspLeft[i + 4]) +
+                // Center layer + 1 (Row 6)
+                (0.013889 * (float)perspLeft[(i + (1 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i + (1 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i + (1 * frameW)) - 2]) +
+                (0.013889 * (float)perspLeft[(i + (1 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i + (1 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i + (1 * frameW)) + 4]) +
+                // center + 2 layer (Row 7)
+                (0.013889 * (float)perspLeft[(i + (2 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i + (2 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i + (2 * frameW)) - 2]) + (0.013889 * (float)perspLeft[(i + (2 * frameW)) - 1]) + (0.013889 * (float)perspLeft[(i + (2 * frameW))]) +
+                (0.013889 * (float)perspLeft[(i + (2 * frameW)) + 1]) + (0.013889 * (float)perspLeft[(i + (2 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i + (2 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i + (2 * frameW)) + 4]) +
+                // center + 3 layer (Row 8)
+                (0.013889 * (float)perspLeft[(i + (3 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i + (3 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i + (3 * frameW)) - 2]) + (0.013889 * (float)perspLeft[(i + (3 * frameW)) - 1]) + (0.013889 * (float)perspLeft[(i + (3 * frameW))]) +
+                (0.013889 * (float)perspLeft[(i + (3 * frameW)) + 1]) + (0.013889 * (float)perspLeft[(i + (3 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i + (3 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i + (3 * frameW)) + 4]) +
+                // center - 4 layer (Row 9)
+                (0.013889 * (float)perspLeft[(i + (4 * frameW)) - 4]) + (0.013889 * (float)perspLeft[(i + (4 * frameW)) - 3]) + (0.013889 * (float)perspLeft[(i + (4 * frameW)) - 2]) + (0.013889 * (float)perspLeft[(i + (4 * frameW)) - 1]) + (0.013889 * (float)perspLeft[(i + (4 * frameW))]) +
+                (0.013889 * (float)perspLeft[(i + (4 * frameW)) + 1]) + (0.013889 * (float)perspLeft[(i + (4 * frameW)) + 2]) + (0.013889 * (float)perspLeft[(i + (4 * frameW)) + 3]) + (0.013889 * (float)perspLeft[(i + (4 * frameW)) + 4]))/255;
+        float res  = midLeft - surLeft;
         if(index < 0) res = -1;
-        else res  = c1 - c2;
+        else res  = midLeft - surLeft;
 
         int compIndex = 0;
 
@@ -622,15 +647,59 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int currentSum = 0;
         int checkr = 0;
 
-        float c1 = (0.25 * (((float)perspFrame[i])/255)) + (0.25 * (((float)perspFrame[i + 1])/255)) + (0.25 * (((float)perspFrame[i + frameW])/255)) + (0.25 * (((float)perspFrame[i + frameW + 1])/255));
-        float c2 = ((0.03 * (float)perspFrame[(i - (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW))]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i - (2 * frameW)) + 3]) +
-                    (0.03 * (float)perspFrame[(i - frameW) - 2]) + (0.03 * (float)perspFrame[(i - frameW) - 1]) + (0.03 * (float)perspFrame[(i - frameW)]) + (0.03 * (float)perspFrame[(i - frameW) + 1]) + (0.03 * (float)perspFrame[(i - frameW) + 2]) + (0.03 * (float)perspFrame[(i - frameW) + 3]) +
-                    (0.03 * (float)perspFrame[(i) - 2])  + (0.03 * (float)perspFrame[(i) - 1]) + (0.03 * (float)perspFrame[(i) + 2]) + (0.03 * (float)perspFrame[(i) + 3]) + (0.03 * (float)perspFrame[(i) + frameW - 2]) + (0.03 * (float)perspFrame[(i) + frameW - 1]) + (0.03 * (float)perspFrame[(i) + frameW + 2]) + (0.03 * (float)perspFrame[(i) + frameW + 3]) +
-                    (0.03 * (float)perspFrame[(i + (2 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW))]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (2 * frameW)) + 3]) +
-                    (0.03 * (float)perspFrame[(i + (3 * frameW)) - 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) - 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW))]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 1]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 2]) + (0.03 * (float)perspFrame[(i + (3 * frameW)) + 3]))/255;
-        float res  = c1 - c2;
+        float midLeft = // Center - 2
+                        (0.04 * (((float)perspLeft[i - (2 * frameW) - 2])/255)) + (0.04 * (((float)perspLeft[i - (2 * frameW) - 1])/255)) + (0.04 * (((float)perspLeft[i - (2 * frameW)])/255)) + (0.04 * (((float)perspLeft[i - (2 * frameW) + 1])/255)) + (0.04 * (((float)perspLeft[i - (2 * frameW) + 2])/255)) +
+                        // Center - 1
+                        (0.04 * (((float)perspLeft[i - (1 * frameW) - 2])/255)) + (0.04 * (((float)perspLeft[i - frameW - 1])/255)) + (0.04 * (((float)perspLeft[i - frameW])/255)) + (0.04 * (((float)perspLeft[i - frameW + 1])/255)) + (0.04 * (((float)perspLeft[i - frameW + 2])/255)) +
+                        // Center
+                        (0.04 * (((float)perspLeft[i - 2])/255)) + (0.04 * (((float)perspLeft[i - 1])/255)) + (0.04 * (((float)perspLeft[i])/255)) + (0.04 * (((float)perspLeft[i + 1])/255)) + (0.04 * (((float)perspLeft[i + 2])/255)) +
+                        // Center + 1
+                        (0.04 * (((float)perspLeft[i + frameW - 2])/255)) + (0.04 * (((float)perspLeft[i + frameW - 1])/255)) + (0.04 * (((float)perspLeft[i + frameW])/255)) + (0.04 * (((float)perspLeft[i + frameW + 1])/255)) + (0.04 * (((float)perspLeft[i + frameW + 2])/255)) +
+                        // Center + 2
+                        (0.04 * (((float)perspLeft[i + (2 * frameW) - 2])/255)) + (0.04 * (((float)perspLeft[i + (2 * frameW) - 1])/255)) + (0.04 * (((float)perspLeft[i + (2 * frameW)])/255)) + (0.04 * (((float)perspLeft[i + (2 * frameW) + 1])/255)) + (0.04 * (((float)perspLeft[i + (2 * frameW) + 2])/255));
+        float surLeft = (
+                                // center - 6 layer (Row 1)
+                                (0.006944 * (float)perspLeft[(i - (6 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i - (6 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i - (6 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i - (6 * frameW)) + 6]) +
+                                // center - 5 layer (Row 2)
+                                (0.006944 * (float)perspLeft[(i - (5 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i - (5 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i - (5 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i - (5 * frameW)) + 6]) +
+                                // center - 4 layer (Row 3)
+                                (0.006944 * (float)perspLeft[(i - (4 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i - (4 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i - (4 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i - (4 * frameW)) + 6]) +
+                                // center - 3 layer (Row 4)
+                                (0.006944 * (float)perspLeft[(i - (3 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i - (3 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i - (3 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i - (3 * frameW)) + 6]) +
+                                // center - 2 layer (Row 5)
+                                (0.006944 * (float)perspLeft[(i - (2 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i - (2 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i - (2 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i - (2 * frameW)) - 3]) +
+                                (0.006944 * (float)perspLeft[(i - (2 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i - (2 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i - (2 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i - (2 * frameW)) + 6]) +
+                                // center - 1 layer (Row 6)
+                                (0.006944 * (float)perspLeft[(i - (1 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i - (1 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i - (1 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i - (1 * frameW)) - 3]) +
+                                (0.006944 * (float)perspLeft[(i - (1 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i - (1 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i - (1 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i - (1 * frameW)) + 6]) +
+                                // Center layer (Row 7)
+                                (0.006944 * (float)perspLeft[i - 6]) + (0.006944 * (float)perspLeft[i - 5]) + (0.006944 * (float)perspLeft[i - 4]) + (0.006944 * (float)perspLeft[i  - 3]) +
+                                (0.006944 * (float)perspLeft[i + 3]) + (0.006944 * (float)perspLeft[i + 4]) + (0.006944 * (float)perspLeft[i + 5]) + (0.006944 * (float)perspLeft[i + 6]) +
+                                // Center layer + 1 (Row 8)
+                                (0.006944 * (float)perspLeft[(i + (1 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i + (1 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i + (1 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i + (1 * frameW)) - 3]) +
+                                (0.006944 * (float)perspLeft[(i + (1 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i + (1 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i + (1 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i + (1 * frameW)) + 6]) +
+                                // center + 2 layer (Row 9)
+                                (0.006944 * (float)perspLeft[(i + (2 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i + (2 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i + (2 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i + (2 * frameW)) - 3]) +
+                                (0.006944 * (float)perspLeft[(i + (2 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i + (2 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i + (2 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i + (2 * frameW)) + 6]) +
+                                // center + 3 layer (Row 10)
+                                (0.006944 * (float)perspLeft[(i + (3 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i + (3 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i + (3 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i + (3 * frameW)) + 6]) +
+                                // center - 4 layer (Row 11)
+                                (0.006944 * (float)perspLeft[(i + (4 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i + (4 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i + (4 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i + (4 * frameW)) + 6]) +
+                                // center + 5 layer (Row 12)
+                                (0.006944 * (float)perspLeft[(i + (5 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i + (5 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i + (5 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i + (5 * frameW)) + 6]) +
+                                // center - 6 layer (Row 13)
+                                (0.006944 * (float)perspLeft[(i + (6 * frameW)) - 6]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) - 5]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) - 4]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) - 3]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) - 2]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) - 1]) + (0.006944 * (float)perspLeft[(i + (6 * frameW))]) +
+                                (0.006944 * (float)perspLeft[(i + (6 * frameW)) + 1]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) + 2]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) + 3]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) + 4]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) + 5]) + (0.006944 * (float)perspLeft[(i + (6 * frameW)) + 6]))/255;
+        float res  = midLeft - surLeft;
         if(index < 0) res = -1;
-        else res  = c1 - c2;
+        else res  = midLeft - surLeft;
 
         int compIndex = 0;
 
@@ -761,7 +830,7 @@ int visualPass1 (){
     int oz3side = 0;
 
     cout << "Div Fac 1 : " << divFactors[1] << endl;
-    if (frame_width > 5000) {
+    if (perspWidth > 5000) {
         cout << "Resolution of Video is 8K" << endl; //16592460 - foveal point
         foveaWidth = 300;
         divFactors[0] = 1;
@@ -782,17 +851,17 @@ int visualPass1 (){
 
 
     }
-    else if (frame_width > 3000 && frame_width < 5000){
+    else if (perspWidth > 3000 && perspWidth < 5000){
         cout << "Resolution of Video is 4K" << endl; //4145280 - foveal point
         foveaWidth = 180;
         divFactors[0] = 1; // 32,400 - 129,600
         paraLength = 90;
-        divFactors[1] = 1; // 45,000 - 90,000
+        divFactors[1] = 2; // 45,000 - 90,000
         periLength = 150;
-        divFactors[2] = 2; // 76,500
+        divFactors[2] = 3; // 34,000
         oz1up = 120;
         oz1side = 255;
-        divFactors[3] = 3; // 60,000
+        divFactors[3] = 3; // 60,000 122400-corners 336600-sides 158400-tops
         oz2up = 250;
         oz2side = 510;
         divFactors[4] = 5; // 81,000
@@ -921,8 +990,8 @@ int visualPass1 (){
     params.longmin = -M_PI;
     params.longmax = M_PI;
     params.perspfov = 90;
-        params.transform = NULL;
-        params.ntransform = 0;
+    params.transform = NULL;
+    params.ntransform = 0;
     params.debug = false;
 
 //    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
@@ -1089,8 +1158,8 @@ int visualPass1 (){
 //        if(i%36 == 35){
 //            cudaSetDevice(0);
 //            cudaDeviceSynchronize();
-//            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(4145280, numOfPixels, frame_height, foveaWidth, paraLength, periLength, frame_width,
-//                                                                               worldLeft, perspLeft, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, retinaDivs);
+//            formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, numOfPixels, frame_height, foveaWidth, paraLength, periLength, perspWidth,
+//                                                                               perspLeft, perspRight, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, retinaDivs);
 //            cudaDeviceSynchronize();
 //        }
 //
