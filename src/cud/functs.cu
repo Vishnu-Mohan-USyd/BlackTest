@@ -123,7 +123,7 @@ XYZ VectorSum(double d1,XYZ p1,double d2,XYZ p2,double d3,XYZ p3,double d4,XYZ p
 }
 
 __global__
-void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS deviceParams, FRUSTUM deviceFrust, TRANSFORM *testTrans)
+void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRight, uint8_t  *perspRight, PARAMS deviceParams, FRUSTUM deviceFrust, TRANSFORM *testTrans)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -133,7 +133,7 @@ void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS deviceParam
 
 
 
-    RGB rgbsum = {0,0,0, 0};
+    RGB rgbLeft = {0, 0, 0, 0}, rgbRight = {0, 0, 0, 0};
     XYZ par;
     double longitude, latitude, xAlias, yAlias, x_sphere, y_sphere;
     int top_left_x, top_left_y, spIndex;
@@ -166,19 +166,27 @@ void world2Persp(::uint8_t  *worldFrame, double  *perspFrame, PARAMS deviceParam
             top_left_y = (int) y_sphere;
 
             spIndex = (top_left_y * deviceParams.worldWidth * 4) + (top_left_x * 4);
-            rgbsum.r += worldFrame[spIndex];
-            rgbsum.g += worldFrame[spIndex + 1];
-            rgbsum.b += worldFrame[spIndex + 2];
-            rgbsum.a += worldFrame[spIndex + 3];
+            rgbLeft.r += worldLeft[spIndex];
+            rgbLeft.g += worldLeft[spIndex + 1];
+            rgbLeft.b += worldLeft[spIndex + 2];
+            rgbLeft.a += worldLeft[spIndex + 3];
+            rgbRight.r += worldRight[spIndex];
+            rgbRight.g += worldRight[spIndex + 1];
+            rgbRight.b += worldRight[spIndex + 2];
+            rgbRight.a += worldRight[spIndex + 3];
 
         }
     }
-    perspFrame[(i * 4)] = rgbsum.r / deviceParams.antialias2;
-    perspFrame[(i * 4) + 1] = rgbsum.g / deviceParams.antialias2;
-    perspFrame[(i * 4) + 2] = rgbsum.b / deviceParams.antialias2;
-    perspFrame[(i * 4) + 3] = rgbsum.a / deviceParams.antialias2;
+    perspLeft[(i * 4)] = rgbLeft.r / deviceParams.antialias2;
+    perspLeft[(i * 4) + 1] = rgbLeft.g / deviceParams.antialias2;
+    perspLeft[(i * 4) + 2] = rgbLeft.b / deviceParams.antialias2;
+    perspLeft[(i * 4) + 3] = rgbLeft.a / deviceParams.antialias2;
+    perspRight[(i * 4)] = rgbRight.r / deviceParams.antialias2;
+    perspRight[(i * 4) + 1] = rgbRight.g / deviceParams.antialias2;
+    perspRight[(i * 4) + 2] = rgbRight.b / deviceParams.antialias2;
+    perspRight[(i * 4) + 3] = rgbRight.a / deviceParams.antialias2;
     // testboy.testr = 56;
-    // perspFrame[i] = deviceParams->testr;
+    // perspLeft[i] = deviceParams->testr;
 
 }
 
@@ -686,14 +694,6 @@ void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
 
 }
 
-//__global__
-//void arrInit(int n, float a, float *x, float *y)
-//{
-//    int i = blockIdx.x*blockDim.x + threadIdx.x;
-//    y[i] = a*x[i] + y[i];
-//}
-
-
 
 int visualPass1 (){
 
@@ -707,8 +707,12 @@ int visualPass1 (){
 
 
     // Video processing parameters
-    VideoReaderState vr_state;
-    if (!video_reader_open(&vr_state, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachLeft.mp4")) {
+    VideoReaderState vr_stateLeft, vr_stateRight;
+    if (!video_reader_open(&vr_stateLeft, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachLeft.mp4")) {
+        cout << "ERROR!!" << endl;
+        cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
+    }
+    if (!video_reader_open(&vr_stateRight, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachRight.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
     }
@@ -734,10 +738,10 @@ int visualPass1 (){
 
 
 
-    // Allocate frame buffer
+    // Allocate frameLeft buffer
     constexpr int ALIGNMENT = 128;
-    const int frame_width = vr_state.width;
-    const int frame_height = vr_state.height;
+    const int frame_width = vr_stateLeft.width;
+    const int frame_height = vr_stateLeft.height;
     const int perspHeight = 2160;
     const int perspWidth = 3840;
     int numOfPixels = frame_width * frame_height;
@@ -799,12 +803,16 @@ int visualPass1 (){
 
 
 
-    uint8_t* frame_data;
+    uint8_t* frame_data_left, *frame_data_right;
     cout << frame_height << endl;
     printf("\x1B[34m                         \tWidth : \033[0m"); cout << frame_width << endl;
-    if (posix_memalign((void**)&frame_data, ALIGNMENT, frame_width * frame_height * 4) != 0) {
+    if (posix_memalign((void**)&frame_data_left, ALIGNMENT, frame_width * frame_height * 4) != 0) {
         cout << "ERROR!!" << endl;
-        printf("Couldn't allocate frame buffer\n");
+        printf("Couldn't allocate frameLeft buffer\n");
+    }
+    if (posix_memalign((void**)&frame_data_right, ALIGNMENT, frame_width * frame_height * 4) != 0) {
+        cout << "ERROR!!" << endl;
+        printf("Couldn't allocate frameLeft buffer\n");
     }
 
     int i = 0;
@@ -820,83 +828,69 @@ int visualPass1 (){
     glOrtho(0, window_width, window_height, 0, -1, 1);
     glMatrixMode(GL_MODELVIEW);
 
-    // Read a new frame and load it into texture
+    // Read a new frameLeft and load it into texture
     int64_t pts;
-    AVFrame* frame = video_reader_read_frame(&vr_state, frame_data, &pts);
+    AVFrame* frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
+    AVFrame* frameRight = video_reader_read_frame(&vr_stateRight, frame_data_right, &pts);
 
-    static bool first_frame = true;
-    if (first_frame) {
-        glfwSetTime(0.0);
-        first_frame = false;
-    }
-
-//        double pt_in_seconds = pts * (double)vr_state.time_base.num / (double)vr_state.time_base.den;
-//        while (pt_in_seconds > glfwGetTime()) {
-//            glfwWaitEventsTimeout(pt_in_seconds - glfwGetTime());
-//        }
+//    static bool first_frame = true;
+//    if (first_frame) {
+//        glfwSetTime(0.0);
+//        first_frame = false;
+//    }
 
 
 
-    int height = frame->height, width = frame->width;
+    int height = frameLeft->height, width = frameLeft->width;
     int u = 0, p_y = 0, p_uv = 0, corrID = 0;
-    uint8_t* data = new uint8_t [height * width * 4];
-    for (int y = 0; y < frame->height; y++){
+    uint8_t* dataLeft = new uint8_t [height * width * 4];
+    uint8_t* dataRight = new uint8_t [height * width * 4];
+    for (int y = 0; y < frameLeft->height; y++){
         for (int x = 0; x < frame_width; x++){
             p_y = (y * width) + x;
 
-            corrID = ((y/2) * frame->linesize[2]) + (x/2);
+            corrID = ((y/2) * frameLeft->linesize[2]) + (x / 2);
 
             // R
-            data[u] = frame->data[0][p_y] + (1.370705 * (frame->data[2][corrID] - 128));
+            dataLeft[u] = frameLeft->data[0][p_y] + (1.370705 * (frameLeft->data[2][corrID] - 128));
+            dataRight[u] = frameRight->data[0][p_y] + (1.370705 * (frameRight->data[2][corrID] - 128));
 
             // G
-            data[u +1] = frame->data[0][p_y] - (0.337633 * (frame->data[1][corrID] - 128)) - (0.698001 * (frame->data[2][corrID] - 128));
+            dataLeft[u + 1] = frameLeft->data[0][p_y] - (0.337633 * (frameLeft->data[1][corrID] - 128)) - (0.698001 * (frameLeft->data[2][corrID] - 128));
+            dataRight[u + 1] = frameRight->data[0][p_y] - (0.337633 * (frameRight->data[1][corrID] - 128)) - (0.698001 * (frameRight->data[2][corrID] - 128));
 
             // B
-            data[u +2] = frame->data[0][p_y] + 1.732446 * (frame->data[1][corrID] - 128);
+            dataLeft[u + 2] = frameLeft->data[0][p_y] + 1.732446 * (frameLeft->data[1][corrID] - 128);
+            dataRight[u + 2] = frameRight->data[0][p_y] + 1.732446 * (frameRight->data[1][corrID] - 128);
 
             // A
-            data[u + 3] = frame->data[0][p_y];
+            dataLeft[u + 3] = frameLeft->data[0][p_y];
+            dataRight[u + 3] = frameRight->data[0][p_y];
 //                if (x == 2 & y == 2)
 //                    cout << "rep : " << i << " || Height : " << y << " || p_y value : " << p_y << " || corrID : " << corrID <<
-//                         " || R : " << (int) data[u] << " || Y : " << (int) frame->data[0][p_y] << " || U : " << (int) frame->data[1][corrID] << " || V : " <<
-//                         (int) frame->data[2][corrID] << endl;
+//                         " || R : " << (int) dataLeft[u] << " || Y : " << (int) frameLeft->dataLeft[0][p_y] << " || U : " << (int) frameLeft->dataLeft[1][corrID] << " || V : " <<
+//                         (int) frameLeft->dataLeft[2][corrID] << endl;
 
             u+=4;
         }
     }
 
-//        auto& sws_scaler_ctx = vr_state.sws_scaler_ctx;
-//        auto& av_codec_ctx = vr_state.av_codec_ctx;
+//        auto& sws_scaler_ctx = vr_stateLeft.sws_scaler_ctx;
+//        auto& av_codec_ctx = vr_stateLeft.av_codec_ctx;
 //        if (!sws_scaler_ctx) {
 //            auto source_pix_fmt = correct_for_deprecated_pixel_format(av_codec_ctx->pix_fmt);
-//            sws_scaler_ctx = sws_getContext(frame->width, frame->height, source_pix_fmt,
-//                                            frame->height, frame->width, AV_PIX_FMT_RGB0,
+//            sws_scaler_ctx = sws_getContext(frameLeft->width, frameLeft->height, source_pix_fmt,
+//                                            frameLeft->height, frameLeft->width, AV_PIX_FMT_RGB0,
 //                                            SWS_BILINEAR, NULL, NULL, NULL);
 //        }
 //
 //        // uint8_t *dataBuffer = nullptr;
-//        uint8_t* dest[4] = { data, NULL, NULL, NULL };
-//        int dest_linesize[4] = { frame->width * 4, 0, 0, 0 };
-//        sws_scale(sws_scaler_ctx, frame->data, frame->linesize, 0, frame->height, dest, dest_linesize);
+//        uint8_t* dest[4] = { dataLeft, NULL, NULL, NULL };
+//        int dest_linesize[4] = { frameLeft->width * 4, 0, 0, 0 };
+//        sws_scale(sws_scaler_ctx, frameLeft->dataLeft, frameLeft->linesize, 0, frameLeft->height, dest, dest_linesize);
 
 
-    glBindTexture(GL_TEXTURE_2D, tex_handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
-    // Render whatever you want
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, tex_handle);
-    glBegin(GL_QUADS);
-    glTexCoord2d(0,0); glVertex2i(0, 0);
-    glTexCoord2d(1,0); glVertex2i(0 + width, 0);
-    glTexCoord2d(1,1); glVertex2i(0 + width, 0 + height);
-    glTexCoord2d(0,1); glVertex2i(0, 0 + height);
-    glEnd();
-    glDisable(GL_TEXTURE_2D);
-
-    glfwSwapBuffers(window);
-    glfwPollEvents();
     // }
 
 
@@ -907,9 +901,9 @@ int visualPass1 (){
     hostTest = (float*)malloc(numOfPixels*sizeof(float));
     hostRGCTests = (float*)malloc(numOfPixels*sizeof(float));
     layoutTest = (char*)malloc(numOfPixels*sizeof(char));
-    ::uint8_t *Y_1, *U_1, *V_1, *worldFrame;
-    ::uint8_t *frameHolderHost, *pinnedTemp;
-    double *perspHost, *perspFrame, *persp1;
+    ::uint8_t *Y_1, *U_1, *V_1, *worldLeft, *worldRight;
+    ::uint8_t *currentFrameLeft, *currentFrameRight, *pinnedTemp;
+    uint8_t *perspHost, *perspLeft, *perspRight, *persp1;
     PARAMS *testparams;
     FRUSTUM testFrust;
     TRANSFORM *devTrans;
@@ -931,15 +925,15 @@ int visualPass1 (){
         params.ntransform = 0;
     params.debug = false;
 
-    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
-                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
-    params.transform[params.ntransform].axis = ZPAN;
-    params.transform[params.ntransform].value = (M_PI / 180)*(40);
-    params.ntransform++;
-    for (int j=0;j<params.ntransform;j++) {
-        params.transform[j].cvalue = cos(params.transform[j].value);
-        params.transform[j].svalue = sin(params.transform[j].value);
-    }
+//    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
+//                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
+//    params.transform[params.ntransform].axis = ZPAN;
+//    params.transform[params.ntransform].value = (M_PI / 180)*(-30);
+//    params.ntransform++;
+//    for (int j=0;j<params.ntransform;j++) {
+//        params.transform[j].cvalue = cos(params.transform[j].value);
+//        params.transform[j].svalue = sin(params.transform[j].value);
+//    }
 
     cudaDeviceProp a{};
     cudaSetDevice(0);
@@ -961,15 +955,17 @@ int visualPass1 (){
     cudaStreamCreate ( &memStream1) ;
     cudaStreamCreate ( &funcStream1) ;
     cudaMalloc(&Y_1, numOfPixels * sizeof(::uint8_t));
-    cudaMalloc(&worldFrame, numOfPixels * 4 * sizeof(::uint8_t));
-    cudaMalloc(&perspFrame, (perspHeight * perspWidth) * 4 * sizeof(double));
-    cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(double));
+    cudaMalloc(&worldLeft, numOfPixels * 4 * sizeof(::uint8_t));
+    cudaMalloc(&worldRight, numOfPixels * 4 * sizeof(::uint8_t));
+    cudaMalloc(&perspLeft, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
+    cudaMalloc(&perspRight, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
+    cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&devTrans, params.ntransform * sizeof(TRANSFORM));
     cudaMalloc(&retinaDivs, 6 * sizeof(int));
     cudaMalloc(&rgcCurrents, numOfPixels*sizeof(float)); // RGC Currents are held here
     cudaMalloc(&rgcTests, numOfPixels*sizeof(float)); // RGC Indexes are held here
     cudaMalloc(&rgcLayout, numOfPixels*sizeof(char )); // RGC Layouts are held here
-    // cudaMalloc(&frameHolderHost, numOfPixels*sizeof(float ));
+    // cudaMalloc(&currentFrameLeft, numOfPixels*sizeof(float ));
     cudaMalloc(&U_1, numOfPixels*sizeof(::uint8_t));
     cudaMalloc(&V_1, numOfPixels*sizeof(::uint8_t));
     cudaSetDevice(1);
@@ -989,62 +985,70 @@ int visualPass1 (){
 
 
 
-    frameHolderHost = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
-    perspHost = (double*)malloc((perspHeight * perspWidth * 4) * sizeof(double));
+    currentFrameLeft = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
+    currentFrameRight = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
+    perspHost = (uint8_t*)malloc((perspHeight * perspWidth * 4) * sizeof(uint8_t));
 
     // int64_t pts;
-    // AVFrame* frame = video_reader_read_frame(&vr_state, frame_data, &pts);
+    // AVFrame* frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
-    cudaMallocHost((void**)&frameHolderHost, bytes * 4);
+    cudaMallocHost((void**)&currentFrameLeft, bytes * 4);
+    cudaMallocHost((void**)&currentFrameRight, bytes * 4);
     cudaMallocHost((void**)&hostTest, numOfPixels * sizeof(float));
     cudaMallocHost((void**)&hostRGCTests, numOfPixels * sizeof(float));
     cudaMallocHost((void**)&layoutTest, numOfPixels * sizeof(float));
-    cudaMallocHost((void**)&perspHost, (perspHeight * perspWidth) * 4 * sizeof(double));
-    vector<::uint8_t *> frameStorage;
+    cudaMallocHost((void**)&perspHost, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
+    vector<::uint8_t *> frameArrayLeft, frameArrayRight;
     for (int fr = 0; fr < 9 ; fr+=1){
-        frame = video_reader_read_frame(&vr_state, frame_data, &pts);
+        frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
         u = 0, p_y = 0, p_uv = 0, corrID = 0;
-        for (int y = 0; y < frame->height; y++){
+        for (int y = 0; y < frameLeft->height; y++){
             for (int x = 0; x < frame_width; x++){
                 p_y = (y * width) + x;
 
-                corrID = ((y/2) * frame->linesize[2]) + (x/2);
+                corrID = ((y/2) * frameLeft->linesize[2]) + (x / 2);
 
                 // R
-                data[u] = frame->data[0][p_y] + (1.370705 * (frame->data[2][corrID] - 128));
+                dataLeft[u] = frameLeft->data[0][p_y] + (1.370705 * (frameLeft->data[2][corrID] - 128));
+                dataRight[u] = frameRight->data[0][p_y] + (1.370705 * (frameRight->data[2][corrID] - 128));
 
                 // G
-                data[u +1] = frame->data[0][p_y] - (0.337633 * (frame->data[1][corrID] - 128)) - (0.698001 * (frame->data[2][corrID] - 128));
+                dataLeft[u + 1] = frameLeft->data[0][p_y] - (0.337633 * (frameLeft->data[1][corrID] - 128)) - (0.698001 * (frameLeft->data[2][corrID] - 128));
+                dataRight[u + 1] = frameRight->data[0][p_y] - (0.337633 * (frameRight->data[1][corrID] - 128)) - (0.698001 * (frameRight->data[2][corrID] - 128));
 
                 // B
-                data[u +2] = frame->data[0][p_y] + 1.732446 * (frame->data[1][corrID] - 128);
+                dataLeft[u + 2] = frameLeft->data[0][p_y] + 1.732446 * (frameLeft->data[1][corrID] - 128);
+                dataRight[u + 2] = frameRight->data[0][p_y] + 1.732446 * (frameRight->data[1][corrID] - 128);
 
                 // A
-                data[u + 3] = frame->data[0][p_y];
+                dataLeft[u + 3] = frameLeft->data[0][p_y];
+                dataRight[u + 3] = frameRight->data[0][p_y];
 //                if (x == 2 & y == 2)
 //                    cout << "rep : " << i << " || Height : " << y << " || p_y value : " << p_y << " || corrID : " << corrID <<
-//                         " || R : " << (int) data[u] << " || Y : " << (int) frame->data[0][p_y] << " || U : " << (int) frame->data[1][corrID] << " || V : " <<
-//                         (int) frame->data[2][corrID] << endl;
+//                         " || R : " << (int) dataLeft[u] << " || Y : " << (int) frameLeft->dataLeft[0][p_y] << " || U : " << (int) frameLeft->dataLeft[1][corrID] << " || V : " <<
+//                         (int) frameLeft->dataLeft[2][corrID] << endl;
 
                 u+=4;
             }
         }
-        frameStorage.push_back(data);
+        frameArrayLeft.push_back(dataLeft);
+        frameArrayRight.push_back(dataRight);
         // cout << fr << endl;
     }
-    // ::memcpy(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t));
+    // ::memcpy(currentFrameLeft, frameArrayLeft[0], numOfPixels * sizeof(::uint8_t));
     int frameIndex = 0;
-    // cout << (int) frameStorage[5][8] << endl;
+    // cout << (int) frameArrayLeft[5][8] << endl;
 
     // --------------- Initial prep ----------------------
     cudaSetDevice(0);
     cudaMemcpy(devTrans, params.transform, params.ntransform * sizeof(TRANSFORM), cudaMemcpyHostToDevice);
     cudaMemcpy(retinaDivs, divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
-//    cudaMemcpy(Y_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-//    cudaMemcpy(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-//    cudaMemcpy(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-    ::memcpy(frameHolderHost, frameStorage[7], numOfPixels * 4 * sizeof(::uint8_t));
-//            cudaMemcpyAsync(V_2, frame->data[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
+//    cudaMemcpy(Y_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
+//    cudaMemcpy(U_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
+//    cudaMemcpy(V_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
+    ::memcpy(currentFrameLeft, frameArrayLeft[7], numOfPixels * 4 * sizeof(::uint8_t));
+    ::memcpy(currentFrameRight, frameArrayRight[7], numOfPixels * 4 * sizeof(::uint8_t));
+//            cudaMemcpyAsync(V_2, frameLeft->dataLeft[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
 
     cudaDeviceSynchronize();
     params.transform = devTrans;
@@ -1059,33 +1063,34 @@ int visualPass1 (){
 
     float * y1;
     auto start = std::chrono::high_resolution_clock::now();
-    cudaMemcpyAsync(worldFrame, frameHolderHost, numOfPixels * 4 *sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+    cudaMemcpyAsync(worldLeft, currentFrameLeft, numOfPixels * 4 * sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+    cudaMemcpyAsync(worldRight, currentFrameRight, numOfPixels * 4 * sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream2);
     cudaDeviceSynchronize();
     cout << "Frustum value : " << params.ntransform << endl;
-    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldFrame, perspFrame, params, frustum, devTrans);
+    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum, devTrans);
     cudaDeviceSynchronize();
-    // world2PerspTest<<<((perspHeight * perspWidth * 4) + 1023)/1024, 1024, 0, funcStream1>>>(perspFrame, persp1);
+    // world2PerspTest<<<((perspHeight * perspWidth * 4) + 1023)/1024, 1024, 0, funcStream1>>>(perspLeft, persp1);
 //    for(int i = 0; i < 1000; i+=1){
 //
 //        if(i%36 == 1){
-////            frame = video_reader_read_frame(&vr_state, frame_data, &pts);
-////            frameStorage.push_back(frame->data[0]);
-//            ::memcpy(frameHolderHost, frameStorage[frameStorageCountr], numOfPixels*sizeof(::uint8_t));
-//            // Transfers data from Video array to local pinned memory
-//            // cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
+////            frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
+////            frameArrayLeft.push_back(frameLeft->dataLeft[0]);
+//            ::memcpy(currentFrameLeft, frameArrayLeft[frameStorageCountr], numOfPixels*sizeof(::uint8_t));
+//            // Transfers dataLeft from Video array to local pinned memory
+//            // cudaMemcpyAsync(currentFrameLeft, frameArrayLeft[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
 //            cudaSetDevice(0);
-//            cudaMemcpyAsync(worldFrame, frameHolderHost, numOfPixels * 4 *sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
-////            cudaMemcpyAsync(U_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
-////            cudaMemcpyAsync(V_1, frameHolderHost, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+//            cudaMemcpyAsync(worldLeft, currentFrameLeft, numOfPixels * 4 *sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+////            cudaMemcpyAsync(U_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
+////            cudaMemcpyAsync(V_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
 //            frameStorageCountr++;
 ////            cudaSetDevice(0);
-////            cudaMemcpyAsync(frameHolderHost, frameStorage[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
+////            cudaMemcpyAsync(currentFrameLeft, frameArrayLeft[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToHost, memStream1);
 //        }
 //        if(i%36 == 35){
 //            cudaSetDevice(0);
 //            cudaDeviceSynchronize();
 //            formRGCinputs<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(4145280, numOfPixels, frame_height, foveaWidth, paraLength, periLength, frame_width,
-//                                                                               worldFrame, perspFrame, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, retinaDivs);
+//                                                                               worldLeft, perspLeft, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, retinaDivs);
 //            cudaDeviceSynchronize();
 //        }
 //
@@ -1107,8 +1112,25 @@ int visualPass1 (){
     // cout << (int) hostTest[2] << endl;
     cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(hostRGCTests, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(perspHost, perspFrame, (perspHeight * perspWidth * 4 ) * sizeof(double), cudaMemcpyDeviceToHost);
-    cout << perspHost[15760] << endl;
+    cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+    cout << (int)perspHost[15760] << endl;
+
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
+
+    // Render whatever you want
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glBegin(GL_QUADS);
+    glTexCoord2d(0,0); glVertex2i(0, 0);
+    glTexCoord2d(1,0); glVertex2i(0 + 1280, 0);
+    glTexCoord2d(1,1); glVertex2i(0 + 1280, 0 + 720);
+    glTexCoord2d(0,1); glVertex2i(0, 0 + 720);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+
+    glfwSwapBuffers(window);
+    glfwPollEvents();
 //    for(int i = 0; i < 350840; i +=1){
 ////        if(hostTest[i] == -1){
 ////            cout << ". ";
@@ -1121,7 +1143,7 @@ int visualPass1 (){
 
 
 
-//            cudaMemcpyAsync(frame->data[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
+//            cudaMemcpyAsync(frameLeft->dataLeft[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
 // cout << "TestVal : " << (int) y1[2] << endl;
 
     cudaFree(Y_1);
