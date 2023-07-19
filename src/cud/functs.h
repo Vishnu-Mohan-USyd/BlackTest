@@ -10,6 +10,11 @@ typedef struct {
 } XYZ;
 
 typedef struct {
+    int foveaWidth, paraLength, periLength, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side;
+    int *divFactors;
+} RGCPARAMS;
+
+typedef struct {
     int r,g,b, a;
 } RGB;
 
