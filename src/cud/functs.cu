@@ -20,6 +20,7 @@ using namespace std;
 
 PARAMS params;
 FRUSTUM frustum;
+RGCPARAMS rgcparams;
 
 __global__
 void saxpy(int n, float a, float *x, float *y)
@@ -202,7 +203,7 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL, int perL, int frameW, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgc, float *rgcTestr, char *rgcLay, int oz1up, int oz1side, int oz2up, int oz2side, int oz3up, int oz3side, int* retDivs)
+void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgcLeft, float *rgcRight, float *rgcTestr, char *rgcLay)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -217,7 +218,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
      * Outer Zone 2 - 500 up, 1000 side || Total RGCs are 132,625 (8.25M pixels)
      * Outer Zone 3 - 600 up, 1500 side || Total RGCs are 125,300 (18.06M pixels)
      *
-     * Total rgc collection count - 777,526 RGCs
+     * Total rgcLeft collection count - 777,526 RGCs
      *
      * ---------------- For 4k Video --------------
      *
@@ -228,7 +229,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
      * Outer Zone 2 - 500 up, 1000 side || Total RGCs are 132,625 (8.25M pixels)
      * Outer Zone 3 - 600 up, 1500 side || Total RGCs are 125,300 (18.06M pixels)
      *
-     * Total rgc collection count - 777,526 RGCs
+     * Total rgcLeft collection count - 777,526 RGCs
      * */
 
     // foveaPoint = pixelCount/2;
@@ -239,7 +240,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     int fovX = defFovPoint - (fovY * frameW);
     int currY = i/frameW;
     int currX = i - (currY * frameW);
-    // rgc[i] = 2;
+    // rgcLeft[i] = 2;
     int xDiff = currX - fovX;
     int yDiff = currY - fovY;
     int index = 0;
@@ -251,9 +252,9 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     }
 
 
-    int fovWidth = fW; int fovWidthMidPre = ((fovWidth / 2) - 1); int fovWidthMidPost = (fovWidth / 2);
-    int paraLength = parL;
-    int periLength = perL;
+    int fovWidth = rgcparams.foveaWidth; int fovWidthMidPre = ((fovWidth / 2) - 1); int fovWidthMidPost = (fovWidth / 2);
+    int paraLength = rgcparams.paraLength;
+    int periLength = rgcparams.periLength;
 
 
 
@@ -263,7 +264,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
 
     // ----------------------- Foveal Processing -----------------------
     if((currX >= fovX - fovWidthMidPre) && (currY >= fovY - fovWidthMidPre) && (currX <= fovX + fovWidthMidPost) && (currY <= fovY + fovWidthMidPost)){
-        // rgc[2] = 1;
+        // rgcLeft[2] = 1;
         int RGCoffset = 0;
         int sectionWidth = fovWidth;
         float midLeft = ((float)perspLeft[i]) / 255;
@@ -276,9 +277,9 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         if(res < 0) res = 0;
 
         // Converting from 2D modelled frame to linear RGC array
-        rgc[((currX - (fovX - fovWidthMidPre)) + ((currY - (fovY - fovWidthMidPre))  * sectionWidth))] = ((currX - (fovX - fovWidthMidPre)) + ((currY - (fovY - fovWidthMidPre))  * sectionWidth));
+        rgcLeft[((currX - (fovX - fovWidthMidPre)) + ((currY - (fovY - fovWidthMidPre)) * sectionWidth))] = ((currX - (fovX - fovWidthMidPre)) + ((currY - (fovY - fovWidthMidPre)) * sectionWidth));
 
-        // rgc[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
+        // rgcLeft[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
     }
 
     // ---------------------- Parafoveal Processing --------------------
@@ -294,7 +295,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             // Bottom
             ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY > (fovY + fovWidthMidPost)) && (currY <= (fovY + (fovWidthMidPost + paraLength))))){
 
-        //rgc[90001] = 2;
+        //rgcLeft[90001] = 2;
         int RGCoffset = fovWidth * fovWidth;
         int sectionWidth = 0;
         int currentSum = 0;
@@ -312,7 +313,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         float res  = midLeft - surLeft;
         if(index < 0) res = -1;
         else res  = midLeft - surLeft;
-        // rgc[90001] = 2;
+        // rgcLeft[90001] = 2;
         // The ParaComputationalUnits;
         int compIndex = 0;
 
@@ -322,19 +323,19 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre))) && (currY <= (fovY + (fovWidthMidPost)))){
                 sectionWidth = paraLength;
-                currentSum = (((fovWidth + (2 * paraLength)) / retDivs[1]) * ( paraLength / retDivs[1] ));
+                currentSum = (((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]) * ( paraLength / rgcparams.divFactors[1] ));
                 int rightAdder = paraLength/2;
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/retDivs[1] + ((currY - (fovY - (fovWidthMidPre)))/retDivs[1] * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1] + ((currY - (fovY - (fovWidthMidPre)))/rgcparams.divFactors[1] * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (currX - (fovX + fovWidthMidPost + 1))/retDivs[1] + ((currY - (fovY - (fovWidthMidPre)))/retDivs[1] * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (currX - (fovX + fovWidthMidPost + 1))/rgcparams.divFactors[1] + ((currY - (fovY - (fovWidthMidPre)))/rgcparams.divFactors[1] * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -343,15 +344,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (2 * paraLength)) / retDivs[1]);
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/retDivs[1] + (((currY - (fovY - (paraLength + fovWidthMidPre)))/retDivs[1]) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]);
+                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1] + (((currY - (fovY - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (2 * paraLength)) / retDivs[1]);
-                    currentSum = (sectionWidth * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1]));
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/retDivs[1] + ((currY - (fovY + (fovWidthMidPost + 1)))/retDivs[1] * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]);
+                    currentSum = (sectionWidth * ( paraLength / rgcparams.divFactors[1] )) + ((paraLength) * (fovWidth/rgcparams.divFactors[1]));
+                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1] + ((currY - (fovY + (fovWidthMidPost + 1)))/rgcparams.divFactors[1] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -359,7 +360,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgcLeft[compIndex] = compIndex;
         }
     }
     // ---------------------------------- X -----------------------------------
@@ -376,7 +377,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             ((currX > (fovX + fovWidthMidPost + paraLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))) ||
             // Bottom
             ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY > (fovY + fovWidthMidPost + paraLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength))))){
-        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1]))));
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1])) * ( paraLength / rgcparams.divFactors[1] )) + ((paraLength) * (fovWidth/rgcparams.divFactors[1])) + ((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]) * (paraLength / rgcparams.divFactors[1]))));
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
@@ -401,24 +402,24 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) % retDivs[2] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength))) % retDivs[2] == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) % rgcparams.divFactors[2] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength))) % rgcparams.divFactors[2] == 1)){
 
             // To check if the current index is in the middle
             if((currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))){
-                sectionWidth = (periLength / retDivs[2]) * 2;
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2]);
-                int rightAdder = (periLength / retDivs[2]);
+                sectionWidth = (periLength / rgcparams.divFactors[2]) * 2;
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]) * (periLength / rgcparams.divFactors[2]);
+                int rightAdder = (periLength / rgcparams.divFactors[2]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2] + (((currY - (fovY - (paraLength + fovWidthMidPre))))/retDivs[2] * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2] + (((currY - (fovY - (paraLength + fovWidthMidPre))))/rgcparams.divFactors[2] * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + ((currX - (fovX + (paraLength + fovWidthMidPost + 1))))/retDivs[2] + (((currY - (fovY - ((paraLength + fovWidthMidPre)))))/retDivs[2] * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + ((currX - (fovX + (paraLength + fovWidthMidPost + 1))))/rgcparams.divFactors[2] + (((currY - (fovY - ((paraLength + fovWidthMidPre)))))/rgcparams.divFactors[2] * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -427,15 +428,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2]) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/retDivs[2] + (((currY - (fovY + ((paraLength + fovWidthMidPost + 1)))))/retDivs[2] * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]) * (periLength / rgcparams.divFactors[2])) + (((2 * periLength) / rgcparams.divFactors[2]) * ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[2]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2] + (((currY - (fovY + ((paraLength + fovWidthMidPost + 1)))))/rgcparams.divFactors[2] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -443,7 +444,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgcLeft[compIndex] = compIndex;
         }
     }
 
@@ -452,16 +453,16 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     if (// Inner Perimeters
 
         // Left
-            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
+            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength)))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength)))) ||
             // Right
-            ((currX > (fovX + fovWidthMidPost + paraLength + periLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))) ||
+            ((currX > (fovX + fovWidthMidPost + paraLength + periLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up))))){
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up))))){
 
-        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1])))) +
-                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2])) * (periLength / retDivs[2])));
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1])) * ( paraLength / rgcparams.divFactors[1] )) + ((paraLength) * (fovWidth/rgcparams.divFactors[1])) + ((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]) * (paraLength / rgcparams.divFactors[1])))) +
+                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]) * (periLength / rgcparams.divFactors[2])) + (((2 * periLength) / rgcparams.divFactors[2]) * ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2])) * (periLength / rgcparams.divFactors[2])));
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
@@ -479,24 +480,24 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) % retDivs[3] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) % retDivs[3] == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) % rgcparams.divFactors[3] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) % rgcparams.divFactors[3] == 1)){
 
             // To check if the current index is in the middle
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))){
-                sectionWidth = ((oz1side / retDivs[3]) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3]);
-                int rightAdder = (oz1side / retDivs[3]);
+                sectionWidth = ((rgcparams.oz1side / rgcparams.divFactors[3]) * 2);
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]) * (rgcparams.oz1up / rgcparams.divFactors[3]);
+                int rightAdder = (rgcparams.oz1side / rgcparams.divFactors[3]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/retDivs[3] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength))))/retDivs[3]) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side)))))/rgcparams.divFactors[3] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength))))/rgcparams.divFactors[3]) * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength+ 1))))/retDivs[3]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength)))))/retDivs[3]) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength+ 1))))/rgcparams.divFactors[3]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength)))))/rgcparams.divFactors[3]) * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -505,15 +506,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/retDivs[3] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up)))))/retDivs[3]) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side)))))/rgcparams.divFactors[3] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1up)))))/rgcparams.divFactors[3]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3])) + ((((oz1side / retDivs[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / retDivs[3]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side)))))/retDivs[3] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + 1)))))/retDivs[3] * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]) * (rgcparams.oz1up / rgcparams.divFactors[3])) + ((((rgcparams.oz1side / rgcparams.divFactors[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / rgcparams.divFactors[3]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side)))))/rgcparams.divFactors[3] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + 1)))))/rgcparams.divFactors[3] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -521,7 +522,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgcLeft[compIndex] = compIndex;
         }
     }
 
@@ -532,18 +533,18 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     if (// Inner Perimeters
 
         // Left
-            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + oz1side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up)))) ||
+            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + oz1up)))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + rgcparams.oz1up)))) ||
             // Right
-            ((currX > (fovX + fovWidthMidPost + paraLength + periLength + oz1side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up)))) ||
+            ((currX > (fovX + fovWidthMidPost + paraLength + periLength + rgcparams.oz1side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + oz1up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up))))){
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))))){
 
-        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / retDivs[1] )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1])))) +
-                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2])) * (periLength / retDivs[2]))) +
-                        (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3])) + ((((oz1side / retDivs[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / retDivs[3])) +
-                        ((((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3])) * (oz1up / retDivs[3]));
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1])) * ( paraLength / rgcparams.divFactors[1] )) + ((paraLength) * (fovWidth/rgcparams.divFactors[1])) + ((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]) * (paraLength / rgcparams.divFactors[1])))) +
+                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]) * (periLength / rgcparams.divFactors[2])) + (((2 * periLength) / rgcparams.divFactors[2]) * ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2])) * (periLength / rgcparams.divFactors[2]))) +
+                        (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]) * (rgcparams.oz1up / rgcparams.divFactors[3])) + ((((rgcparams.oz1side / rgcparams.divFactors[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / rgcparams.divFactors[3])) +
+                        ((((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3])) * (rgcparams.oz1up / rgcparams.divFactors[3]));
 
         int sectionWidth = 0;
         int currentSum = 0;
@@ -587,24 +588,24 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) % retDivs[4] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) % retDivs[4] == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) % rgcparams.divFactors[4] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) % rgcparams.divFactors[4] == 1)){
 
             // To check if the current index is in the middle
-            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up)))){
-                sectionWidth = ((oz2side / retDivs[4]) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]) * (oz2up / retDivs[4]);
-                int rightAdder = (oz2side / retDivs[4]);
+            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)))){
+                sectionWidth = ((rgcparams.oz2side / rgcparams.divFactors[4]) * 2);
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]) * (rgcparams.oz2up / rgcparams.divFactors[4]);
+                int rightAdder = (rgcparams.oz2side / rgcparams.divFactors[4]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/retDivs[4] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + oz1up))))/retDivs[4]) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)))))/rgcparams.divFactors[4] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + rgcparams.oz1up))))/rgcparams.divFactors[4]) * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + oz1side + 1))))/retDivs[4]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + oz1up)))))/retDivs[4]) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + rgcparams.oz1side + 1))))/rgcparams.divFactors[4]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + rgcparams.oz1up)))))/rgcparams.divFactors[4]) * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -613,15 +614,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/retDivs[4] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up + oz2up)))))/retDivs[4]) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)))))/rgcparams.divFactors[4] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))))/rgcparams.divFactors[4]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]) * (oz2up / retDivs[4])) + ((((oz2side / retDivs[4]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up)) / retDivs[4]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side)))))/retDivs[4] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + oz1up + 1)))))/retDivs[4] * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]) * (rgcparams.oz2up / rgcparams.divFactors[4])) + ((((rgcparams.oz2side / rgcparams.divFactors[4]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * rgcparams.oz1up)) / rgcparams.divFactors[4]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)))))/rgcparams.divFactors[4] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + rgcparams.oz1up + 1)))))/rgcparams.divFactors[4] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -629,7 +630,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgcLeft[compIndex] = compIndex;
         }
     }
 
@@ -638,19 +639,19 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
     if (// Inner Perimeters
 
         // Left
-            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up + oz3up)))) ||
+            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up)))) ||
             // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + oz1up + oz2up)))) ||
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + rgcparams.oz1up + rgcparams.oz2up)))) ||
             // Right
-            ((currX > (fovX + fovWidthMidPost + paraLength + periLength + oz1side + oz2side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up + oz3up)))) ||
+            ((currX > (fovX + fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up)))) ||
             // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + oz1side + oz2side + oz3side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + oz1up + oz2up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up + oz3up))))){
+            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))))){
 
-        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / retDivs[1])) * ( paraLength / 2 )) + ((paraLength) * (fovWidth/retDivs[1])) + ((((fovWidth + (2 * paraLength)) / retDivs[1]) * (paraLength / retDivs[1])))) +
-                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2]) * (periLength / retDivs[2])) + (((2 * periLength) / retDivs[2]) * ((fovWidth + (2 * paraLength)) / retDivs[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / retDivs[2])) * (periLength / retDivs[2]))) +
-                        (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3]) * (oz1up / retDivs[3])) + ((((oz1side / retDivs[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / retDivs[3])) +
-                        ((((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2)) / retDivs[3])) * (oz1up / retDivs[3])) + (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4]) * (oz2up / retDivs[4])) +
-                        ((((oz2side / retDivs[4]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up)) / retDivs[4])) + ((((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2)) / retDivs[4])) * (oz2up / retDivs[4]));
+        int RGCoffset = (fovWidth * fovWidth) + (((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1])) * ( paraLength / 2 )) + ((paraLength) * (fovWidth/rgcparams.divFactors[1])) + ((((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]) * (paraLength / rgcparams.divFactors[1])))) +
+                        (((((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]) * (periLength / rgcparams.divFactors[2])) + (((2 * periLength) / rgcparams.divFactors[2]) * ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[2]))) + ((((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2])) * (periLength / rgcparams.divFactors[2]))) +
+                        (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]) * (rgcparams.oz1up / rgcparams.divFactors[3])) + ((((rgcparams.oz1side / rgcparams.divFactors[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / rgcparams.divFactors[3])) +
+                        ((((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3])) * (rgcparams.oz1up / rgcparams.divFactors[3])) + (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]) * (rgcparams.oz2up / rgcparams.divFactors[4])) +
+                        ((((rgcparams.oz2side / rgcparams.divFactors[4]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * rgcparams.oz1up)) / rgcparams.divFactors[4])) + ((((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4])) * (rgcparams.oz2up / rgcparams.divFactors[4]));
         int sectionWidth = 0;
         int currentSum = 0;
         int checkr = 0;
@@ -712,24 +713,24 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side))) % retDivs[5] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up))) % retDivs[5] == 1)){
+        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) % rgcparams.divFactors[5] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) % rgcparams.divFactors[5] == 1)){
 
             // To check if the current index is in the middle
-            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + oz1up + oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + oz1up + oz2up)))){
-                sectionWidth = ((oz3side / retDivs[5]) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]) * (oz3up / retDivs[5]);
-                int rightAdder = (oz3side / retDivs[5]);
+            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))){
+                sectionWidth = ((rgcparams.oz3side / rgcparams.divFactors[5]) * 2);
+                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]) * (rgcparams.oz3up / rgcparams.divFactors[5]);
+                int rightAdder = (rgcparams.oz3side / rgcparams.divFactors[5]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/retDivs[5] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + oz1up + oz2up))))/retDivs[5]) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side)))))/rgcparams.divFactors[5] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + rgcparams.oz1up + rgcparams.oz2up))))/rgcparams.divFactors[5]) * sectionWidth)) + RGCoffset + currentSum;
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + oz1side + oz2side + 1))))/retDivs[5]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + oz1up + oz2up)))))/retDivs[5]) * sectionWidth)) + RGCoffset + currentSum;
+                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + rgcparams.oz1side + rgcparams.oz2side + 1))))/rgcparams.divFactors[5]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + rgcparams.oz1up + rgcparams.oz2up)))))/rgcparams.divFactors[5]) * sectionWidth)) + RGCoffset + currentSum;
                 }
             }
 
@@ -738,15 +739,15 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
                 // Top Section
                 if(currY < fovY){
                     checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/retDivs[5] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + oz1up + oz2up + oz3up)))))/retDivs[5]) * sectionWidth)) + RGCoffset;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]);
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side)))))/rgcparams.divFactors[5] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up)))))/rgcparams.divFactors[5]) * sectionWidth)) + RGCoffset;
                 }
                     // Bottom Section
                 else {
                     checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / retDivs[5]) * (oz3up / retDivs[5])) + ((((oz3side / retDivs[5]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * oz1up) + (2 * oz2up)) / retDivs[5]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + oz1side + oz2side + oz3side)))))/retDivs[5] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + oz1up + oz2up + 1)))))/retDivs[5] * sectionWidth)) + RGCoffset + currentSum;
+                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]);
+                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]) * (rgcparams.oz3up / rgcparams.divFactors[5])) + ((((rgcparams.oz3side / rgcparams.divFactors[5]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * rgcparams.oz1up) + (2 * rgcparams.oz2up)) / rgcparams.divFactors[5]));
+                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side)))))/rgcparams.divFactors[5] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + rgcparams.oz1up + rgcparams.oz2up + 1)))))/rgcparams.divFactors[5] * sectionWidth)) + RGCoffset + currentSum;
                 }
 
                 //--------------------------X--------------------------
@@ -754,7 +755,7 @@ void formRGCinputs(int foveaPoint, int pixelCount, int frameH, int fW, int parL,
             }
 
             // Entering data
-            rgc[compIndex] = compIndex;
+            rgcLeft[compIndex] = compIndex;
         }
     }
 
@@ -823,59 +824,50 @@ int visualPass1 (){
     const int perspWidth = 3840;
     int numOfPixels = frame_width * frame_height;
     int * divFactors, * retinaDivs;
+    rgcparams.divFactors = (int*)malloc(6 * sizeof(int));
 
     divFactors = (int*)malloc(6*sizeof(int));
     // cudaMallocHost((void**)&divFactors, sizeof(int));
 
-    int foveaWidth = 0;
-    int paraLength = 0;
-    int periLength = 0;
-    int oz1up = 0;
-    int oz1side = 0;
-    int oz2up = 0;
-    int oz2side = 0;
-    int oz3up = 0;
-    int oz3side = 0;
-
     cout << "Div Fac 1 : " << divFactors[1] << endl;
     if (perspWidth > 5000) {
         cout << "Resolution of Video is 8K" << endl; //16592460 - foveal point
-        foveaWidth = 300;
-        divFactors[0] = 1;
-        paraLength = 200;
-        divFactors[1] = 2;
-        periLength = 300;
-        divFactors[2] = 3;
-        oz1up = 400;
-        oz1side = 500;
-        divFactors[3] = 4;
-        oz2up = 500;
-        oz2side = 1000;
-        divFactors[4] = 8;
-        oz3up = 600;
-        oz3side = 1500;
-        divFactors[5] = 12;
+        rgcparams.foveaWidth = 300;
+        rgcparams.divFactors[0] = 1;
+        rgcparams.paraLength = 200;
+        rgcparams.divFactors[1] = 2;
+        rgcparams.periLength = 300;
+        rgcparams.divFactors[2] = 3;
+        rgcparams.oz1up = 400;
+        rgcparams.oz1side = 500;
+        rgcparams.divFactors[3] = 4;
+        rgcparams.oz2up = 500;
+        rgcparams.oz2side = 1000;
+        rgcparams.divFactors[4] = 8;
+        rgcparams.oz3up = 600;
+        rgcparams.oz3side = 1500;
+        rgcparams.divFactors[5] = 12;
 
 
 
     }
     else if (perspWidth > 3000 && perspWidth < 5000){
         cout << "Resolution of Video is 4K" << endl; //4145280 - foveal point
-        foveaWidth = 180;
-        divFactors[0] = 1; // 32,400 - 129,600
-        paraLength = 90;
-        divFactors[1] = 2; // 45,000 - 90,000
-        periLength = 150;
-        divFactors[2] = 3; // 34,000
-        oz1up = 120;
-        oz1side = 255;
-        divFactors[3] = 3; // 60,000 122400-corners 336600-sides 158400-tops
-        oz2up = 250;
-        oz2side = 510;
-        divFactors[4] = 5; // 81,000
-        oz3up = 375;
-        oz3side = 765;
-        divFactors[5] = 7; // 83,686
+        rgcparams.foveaWidth = 180;
+        rgcparams.divFactors[0] = 1; // 32,400 - 129,600
+        rgcparams.paraLength = 90;
+        rgcparams.divFactors[1] = 2; // 45,000 - 90,000
+        rgcparams.periLength = 150;
+        rgcparams.divFactors[2] = 3; // 34,000
+        rgcparams.oz1up = 120;
+        rgcparams.oz1side = 255;
+        rgcparams.divFactors[3] = 3; // 60,000 122400-corners 336600-sides 158400-tops
+        rgcparams.oz2up = 250;
+        rgcparams.oz2side = 510;
+        rgcparams.divFactors[4] = 5; // 81,000
+        rgcparams.oz3up = 375;
+        rgcparams.oz3side = 765;
+        rgcparams.divFactors[5] = 7; // 83,686
     }
 
 
@@ -952,28 +944,10 @@ int visualPass1 (){
         }
     }
 
-//        auto& sws_scaler_ctx = vr_stateLeft.sws_scaler_ctx;
-//        auto& av_codec_ctx = vr_stateLeft.av_codec_ctx;
-//        if (!sws_scaler_ctx) {
-//            auto source_pix_fmt = correct_for_deprecated_pixel_format(av_codec_ctx->pix_fmt);
-//            sws_scaler_ctx = sws_getContext(frameLeft->width, frameLeft->height, source_pix_fmt,
-//                                            frameLeft->height, frameLeft->width, AV_PIX_FMT_RGB0,
-//                                            SWS_BILINEAR, NULL, NULL, NULL);
-//        }
-//
-//        // uint8_t *dataBuffer = nullptr;
-//        uint8_t* dest[4] = { dataLeft, NULL, NULL, NULL };
-//        int dest_linesize[4] = { frameLeft->width * 4, 0, 0, 0 };
-//        sws_scale(sws_scaler_ctx, frameLeft->dataLeft, frameLeft->linesize, 0, frameLeft->height, dest, dest_linesize);
-
-
-
-    // }
-
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
-    float *rgcCurrents, *hostTest, *rgcTests, *hostRGCTests;
+    float *rgcsLeft, *rgcsRight, *hostTest, *rgcTests, *hostRGCTests;
     char *rgcLayout, *layoutTest;
     hostTest = (float*)malloc(numOfPixels*sizeof(float));
     hostRGCTests = (float*)malloc(numOfPixels*sizeof(float));
@@ -1022,7 +996,6 @@ int visualPass1 (){
 
     CalcFrustum();
 
-    int nOS = 1000000;
     //----------------------------------------------------------
 
 
@@ -1039,7 +1012,8 @@ int visualPass1 (){
     cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&devTrans, params.ntransform * sizeof(TRANSFORM));
     cudaMalloc(&retinaDivs, 6 * sizeof(int));
-    cudaMalloc(&rgcCurrents, numOfPixels*sizeof(float)); // RGC Currents are held here
+    cudaMalloc(&rgcsLeft, numOfPixels * sizeof(float)); // RGC Currents are held here
+    cudaMalloc(&rgcsRight, numOfPixels * sizeof(float)); // RGC Currents are held here
     cudaMalloc(&rgcTests, numOfPixels*sizeof(float)); // RGC Indexes are held here
     cudaMalloc(&rgcLayout, numOfPixels*sizeof(char )); // RGC Layouts are held here
     // cudaMalloc(&currentFrameLeft, numOfPixels*sizeof(float ));
@@ -1057,6 +1031,7 @@ int visualPass1 (){
 //    }
 
     // Begin main loop
+
 
 
 
@@ -1119,7 +1094,7 @@ int visualPass1 (){
     // --------------- Initial prep ----------------------
     cudaSetDevice(0);
     cudaMemcpy(devTrans, params.transform, params.ntransform * sizeof(TRANSFORM), cudaMemcpyHostToDevice);
-    cudaMemcpy(retinaDivs, divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(retinaDivs, rgcparams.divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
 //    cudaMemcpy(Y_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
 //    cudaMemcpy(U_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
 //    cudaMemcpy(V_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
@@ -1128,6 +1103,7 @@ int visualPass1 (){
 //            cudaMemcpyAsync(V_2, frameLeft->dataLeft[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
 
     cudaDeviceSynchronize();
+    rgcparams.divFactors = retinaDivs;
     params.transform = devTrans;
 
     int frameStorageCountr = 0;
@@ -1166,8 +1142,7 @@ int visualPass1 (){
 //        if(i%36 == 35){
 //            cudaSetDevice(0);
 //            cudaDeviceSynchronize();
-//            formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, numOfPixels, frame_height, foveaWidth, paraLength, periLength, perspWidth,
-//                                                                               perspLeft, perspRight, rgcCurrents, rgcTests, rgcLayout, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, retinaDivs);
+            formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, perspHeight, perspWidth, rgcparams, perspLeft, perspRight, rgcsLeft, rgcsRight, rgcTests, rgcLayout);
 //            cudaDeviceSynchronize();
 //        }
 //
@@ -1187,10 +1162,10 @@ int visualPass1 (){
 
     cudaSetDevice(0);
     // cout << (int) hostTest[2] << endl;
-    cudaMemcpy(hostTest, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(hostRGCTests, rgcCurrents, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hostTest, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hostRGCTests, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-    cout << (int)perspHost[15760] << endl;
+    cout << (int)hostTest[300000] << endl;
 
     glBindTexture(GL_TEXTURE_2D, tex_handle);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
@@ -1208,15 +1183,11 @@ int visualPass1 (){
 
     glfwSwapBuffers(window);
     glfwPollEvents();
-//    for(int i = 0; i < 350840; i +=1){
-////        if(hostTest[i] == -1){
-////            cout << ". ";
-////        } else cout << "x ";
-////        if (i % (((((foveaWidth) + (paraLength * 2) + (periLength * 2) + (oz1side * 2) + (oz2side * 2) + (oz3side * 2)) / divFactors[5]))) == 1) cout << endl;
-//        if(hostTest[i] != i){
-//            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
-//        }
-//    }
+    for(int i = 0; i < 350840; i +=1){
+        if(hostTest[i] != i){
+            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
+        }
+    }
 
 
 
