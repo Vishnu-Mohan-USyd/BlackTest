@@ -15,7 +15,9 @@
 #include "cuda_profiler_api.h"
 #include <GLFW/glfw3.h>
 #include <cmath>
+#include <matplot/matplot.h>
 
+using namespace matplot;
 using namespace std;
 
 PARAMS params;
