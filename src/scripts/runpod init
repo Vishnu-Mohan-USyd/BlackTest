@@ -1,5 +1,5 @@
 // Installs basics, Cuda and FFMPEG essentials
-yes | sudo apt update && yes | sudo apt upgrade && yes | sudo apt-get install build-essential && yes | sudo apt-get install linux-headers-$(uname -r) && yes | sudo apt install nvidia-cuda-toolkit && yes | sudo apt-get install xorg-dev libglu1-mesa-dev ffmpeg doxygen libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libavdevice-dev
+yes | sudo apt update && yes | sudo apt upgrade && yes | sudo apt-get install build-essential && yes | sudo apt-get install linux-headers-$(uname -r) && yes | sudo apt install nvidia-cuda-toolkit && yes | sudo apt-get install xorg-dev libglu1-mesa-dev ffmpeg doxygen libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libavdevice-dev gnuplot-x11
 
 // In case there isn't chrome :
 wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && yes | sudo apt install ./google-chrome-stable_current_amd64.deb && google-chrome https://www.jetbrains.com/clion/download/download-thanks.html --no-sandbox &>/dev/null & sleep 50 && sudo pkill -9 chrome && tar -xvf '/home/kasm-user/Downloads/CLion-2022.3.2.tar.gz' && cd '/home/kasm-user/clion-2022.3.2/bin' && echo 'export BROSWER=/usr/bin/google-chrome --no-sandbox' >> ~/.bashrc && sh clion.sh
