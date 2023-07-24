@@ -205,7 +205,7 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgcLeft, float *rgcRight, float *rgcTestr, char *rgcLay)
+void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgcLeft, float *rgcRight, float *rgcTestr, char *rgcLay, float** rgcLeftDevice, float** rgcRightDevice)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -859,7 +859,7 @@ int visualPass1 (){
         rgcparams.divFactors[0] = 1; // 32,400 - 129,600
         rgcparams.paraLength = 90;
         rgcparams.divFactors[1] = 2; // 45,000 - 90,000
-        rgcparams.periLength = 150;
+        rgcparams.periLength = 210;
         rgcparams.divFactors[2] = 3; // 34,000
         rgcparams.oz1up = 120;
         rgcparams.oz1side = 255;
@@ -867,11 +867,60 @@ int visualPass1 (){
         rgcparams.oz2up = 250;
         rgcparams.oz2side = 510;
         rgcparams.divFactors[4] = 5; // 81,000
-        rgcparams.oz3up = 375;
+        rgcparams.oz3up = 320;
         rgcparams.oz3side = 765;
         rgcparams.divFactors[5] = 7; // 83,686
     }
 
+    int yMatch[perspHeight], xWidths[perspHeight], rgcHeight, tmpxSum, rgcArrayHeight = -1;
+    for(int i = 0; i < perspHeight; i+=1){
+        tmpxSum =
+                // ------------------------------------ Side series ----------------------------------
+
+                // - OZ3
+                (int)(((((i % rgcparams.divFactors[5] == 0) && (i >= 0 && i < perspHeight)) ? 1 : 0) * (2 * ((double)rgcparams.oz3side / (double)rgcparams.divFactors[5]))) +
+
+                        ((((i % rgcparams.divFactors[5] == 0) && ((i >= 0 && i < (double)rgcparams.oz3up) || (i >= (perspHeight - (double)rgcparams.oz3up) && i < perspHeight))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side) + (2 * (double)rgcparams.oz2side)) / (double)rgcparams.divFactors[5])))) +
+
+                // - OZ2
+                (int)(((((i % rgcparams.divFactors[4] == 0) && (i >= (double)rgcparams.oz3up && i < (perspHeight - (double)rgcparams.oz3up))) ? 1 : 0) * (2 * ((double)rgcparams.oz2side / (double)rgcparams.divFactors[4]))) +
+
+                        ((((i % rgcparams.divFactors[4] == 0) && ((i >= (double)rgcparams.oz3up && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) && i < (perspHeight - (double)rgcparams.oz3up)))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side)) / (double)rgcparams.divFactors[4])))) +
+
+                // - OZ1
+                (int)(((((i % rgcparams.divFactors[3] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)))) ? 1 : 0) * (2 * ((double)rgcparams.oz1side / (double)rgcparams.divFactors[3]))) +
+
+                        ((((i % rgcparams.divFactors[3] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength)) / (double)rgcparams.divFactors[3])))) +
+
+                // - Peri
+                (int)(((((i % rgcparams.divFactors[2] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)))) ? 1 : 0) * (2 * ((double)rgcparams.periLength / (double)rgcparams.divFactors[2]))) +
+
+                        ((((i % rgcparams.divFactors[2] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[2])))) +
+
+                // - Para
+                (int)(((((i % rgcparams.divFactors[1] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)))) ? 1 : 0) * (2 * ((double)rgcparams.paraLength / (double)rgcparams.divFactors[1]))) +
+
+                        ((((i % rgcparams.divFactors[1] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth) / (double)rgcparams.divFactors[1])))) +
+
+                // - Fovea
+                ((((i % rgcparams.divFactors[0] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)))) ? 1 : 0) * (double)rgcparams.foveaWidth);
+
+
+        if(tmpxSum != 0){
+            rgcArrayHeight+=1;
+            xWidths[rgcArrayHeight] = tmpxSum;
+            // cout << xWidths[rgcArrayHeight]  << endl;
+        }
+        yMatch[i] = rgcArrayHeight;
+
+        // cout <<"i : " << i <<  " || Temp Sum : " << tmpxSum << " || yMatch : " << yMatch[i] << endl;
+    }
+    rgcArrayHeight += 1;
+    cout << "rgcArrayHeight : " << rgcArrayHeight << endl;
+
+    for (int i = 0; i < rgcArrayHeight; i+=1){
+        cout << "xWidths : " << xWidths[i] << endl;
+    }
 
 
     uint8_t* frame_data_left, *frame_data_right;
@@ -949,8 +998,12 @@ int visualPass1 (){
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
-    float *rgcsLeft, *rgcsRight, *hostTest, *rgcTests, *hostRGCTests;
+    float *rgcsLeft, *rgcsRight, *hostTest, *rgcTests, *hostRGCTests, **rgcLeftHost, **rgcRightHost, **rgcLeftDev, **rgcRightDev;
     char *rgcLayout, *layoutTest;
+    rgcLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    rgcRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&rgcLeftDev, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&rgcRightDev, rgcArrayHeight * sizeof(float*));
     hostTest = (float*)malloc(numOfPixels*sizeof(float));
     hostRGCTests = (float*)malloc(numOfPixels*sizeof(float));
     layoutTest = (char*)malloc(numOfPixels*sizeof(char));
@@ -960,6 +1013,17 @@ int visualPass1 (){
     PARAMS *testparams;
     FRUSTUM testFrust;
     TRANSFORM *devTrans;
+
+    cudaSetDevice(0);
+    cudaStream_t str1 ;
+    for(int i = 0; i < rgcArrayHeight; i+=1){
+        cudaMalloc((void **)&rgcLeftHost[i], xWidths[i] * sizeof(float));
+        cudaMalloc((void **)&rgcRightHost[i], xWidths[i] * sizeof(float));
+    }
+
+    cudaMemcpy(rgcLeftDev, rgcLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    cudaMemcpy(rgcRightDev, rgcRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+
 
     params.perspWidth = perspWidth;
     params.perspHeight = perspHeight;
@@ -1144,7 +1208,7 @@ int visualPass1 (){
 //        if(i%36 == 35){
 //            cudaSetDevice(0);
 //            cudaDeviceSynchronize();
-            formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, perspHeight, perspWidth, rgcparams, perspLeft, perspRight, rgcsLeft, rgcsRight, rgcTests, rgcLayout);
+            formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, perspHeight, perspWidth, rgcparams, perspLeft, perspRight, rgcsLeft, rgcsRight, rgcTests, rgcLayout, rgcLeftDev, rgcRightDev);
 //            cudaDeviceSynchronize();
 //        }
 //
@@ -1169,27 +1233,27 @@ int visualPass1 (){
     cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
     cout << (int)hostTest[300000] << endl;
 
-    glBindTexture(GL_TEXTURE_2D, tex_handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
-
-    // Render whatever you want
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, tex_handle);
-    glBegin(GL_QUADS);
-    glTexCoord2d(0,0); glVertex2i(0, 0);
-    glTexCoord2d(1,0); glVertex2i(0 + 1280, 0);
-    glTexCoord2d(1,1); glVertex2i(0 + 1280, 0 + 720);
-    glTexCoord2d(0,1); glVertex2i(0, 0 + 720);
-    glEnd();
-    glDisable(GL_TEXTURE_2D);
-
-    glfwSwapBuffers(window);
-    glfwPollEvents();
-    for(int i = 0; i < 350840; i +=1){
-        if(hostTest[i] != i){
-            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
-        }
-    }
+//    glBindTexture(GL_TEXTURE_2D, tex_handle);
+//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
+//
+//    // Render whatever you want
+//    glEnable(GL_TEXTURE_2D);
+//    glBindTexture(GL_TEXTURE_2D, tex_handle);
+//    glBegin(GL_QUADS);
+//    glTexCoord2d(0,0); glVertex2i(0, 0);
+//    glTexCoord2d(1,0); glVertex2i(0 + 1280, 0);
+//    glTexCoord2d(1,1); glVertex2i(0 + 1280, 0 + 720);
+//    glTexCoord2d(0,1); glVertex2i(0, 0 + 720);
+//    glEnd();
+//    glDisable(GL_TEXTURE_2D);
+//
+//    glfwSwapBuffers(window);
+//    glfwPollEvents();
+//    for(int i = 0; i < 350840; i +=1){
+//        if(hostTest[i] != i){
+//            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
+//        }
+//    }
 
 
 
