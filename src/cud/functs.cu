@@ -609,13 +609,14 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
 
                 // Checks if current index is in the top or bottom sections
             else {
+                checkr = 2;
                 rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
                        (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) / rgcparams.divFactors[4]));
 
             }
 
             // Entering data
-            rgcLeftDevice[yMatch[currY]][rgcX] = rgcX;
+            rgcLeftDevice[yMatch[currY]][rgcX] = checkr;
         }
     }
 
@@ -700,35 +701,35 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
         // Picking out units of computation
         if (((currX) % rgcparams.divFactors[5] == 0) && ((currY) % rgcparams.divFactors[5] == 0)){
 
+
             // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))){
+
+
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
-                    checkr = 1;
+                    checkr = 4;
                     rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) / rgcparams.divFactors[5]));
                 }
                     // Right Section
                 else {
-                    checkr = 2;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
-                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
-                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
-                           (rgcparams.foveaWidth) +
-                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
-                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
-                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
-                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                    checkr = 5;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (((currY > 0) && (currY < rgcparams.perspHeight)) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * 2 * (((currY >= (rgcparams.oz3up)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up)))) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * 2 * (((currY >= (rgcparams.oz3up + rgcparams.oz2up)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up)))) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * 2 * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up)))) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * 2 * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength)))) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (rgcparams.foveaWidth * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)))) ? 1 : 0)) +
                            (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + 1))) / rgcparams.divFactors[5]));
                 }
+
             }
 
                 // Checks if current index is in the top or bottom sections
             else {
-                checkr = 3;
+                checkr = 6;
                 rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX) / rgcparams.divFactors[5]));
 
             }
@@ -850,7 +851,6 @@ int visualPass1 (){
     }
     rgcparams.perspHeight = perspHeight;
     rgcparams.perspWidth = perspWidth;
-
     int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, rgcHeight, tmpxSum, rgcArrayHeight = -1;
     yMatchHost = (int *)malloc(perspHeight * sizeof(int));
     xWidthsHost = (int *)malloc(perspHeight * sizeof(int));
@@ -1218,7 +1218,7 @@ int visualPass1 (){
     cudaMemcpy(hostRGCTests, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(rgcLeftHost, rgcLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-    for(int p = 0; p < 300; p+=1){
+    for(int p = 0; p < 50; p+=1){
         cudaMemcpy(rgcPin[p], rgcLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
         cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
         for(int j = 0; j < xWidthsHost[p]; j+=1){
