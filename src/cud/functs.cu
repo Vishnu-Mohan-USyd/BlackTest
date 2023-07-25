@@ -205,7 +205,7 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgcLeft, float *rgcRight, float *rgcTestr, char *rgcLay, float** rgcLeftDevice, float** rgcRightDevice)
+void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgcLeft, float *rgcRight, float *rgcTestr, char *rgcLay, float** rgcLeftDevice, float** rgcRightDevice, int* xWidths, int* yMatch)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -238,14 +238,15 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
     int defFovPoint = 4145280;
     int actFovY = foveaPoint/frameW;
     int actFovX = foveaPoint - (actFovY * frameW);
-    int fovY = defFovPoint/frameW;
-    int fovX = defFovPoint - (fovY * frameW);
+    int fovY = (rgcparams.perspHeight / 2) - 1;
+    int fovX = (rgcparams.perspWidth / 2) - 1;
     int currY = i/frameW;
     int currX = i - (currY * frameW);
     // rgcLeft[i] = 2;
     int xDiff = currX - fovX;
     int yDiff = currY - fovY;
     int index = 0;
+    int rgcX, rgcY;
     if((((xDiff < 0) && (((xDiff - 8) * -1) > actFovX)) || (((xDiff) > 0) && ((xDiff + 8) > (frameW - actFovX)))) ||
        ((((yDiff) < 0) && (((yDiff - 8) * -1) > actFovY)) || (((yDiff) > 0) && ((yDiff + 8) > (frameH - actFovY))))){
         index = -1;
@@ -279,9 +280,14 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
         if(res < 0) res = 0;
 
         // Converting from 2D modelled frame to linear RGC array
-        rgcLeft[((currX - (fovX - fovWidthMidPre)) + ((currY - (fovY - fovWidthMidPre)) * sectionWidth))] = ((currX - (fovX - fovWidthMidPre)) + ((currY - (fovY - fovWidthMidPre)) * sectionWidth));
+        rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+               (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+               (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+               (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+               (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+               (currX - (fovX - (fovWidthMidPre)));
 
-        // rgcLeft[((currX - (fovX - 149)) + ((currY - (fovY - 149))  * sectionWidth))] = (float)Y[(i - frameW) + 1];
+        rgcLeftDevice[yMatch[currY]][rgcX] = rgcX;
     }
 
     // ---------------------- Parafoveal Processing --------------------
@@ -315,54 +321,48 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
         float res  = midLeft - surLeft;
         if(index < 0) res = -1;
         else res  = midLeft - surLeft;
-        // rgcLeft[90001] = 2;
-        // The ParaComputationalUnits;
-        int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX % 1) == 0) && ((currY % 1) == 0)){
+        if (((currX % rgcparams.divFactors[1]) == 0) && ((currY % rgcparams.divFactors[1]) == 0)){
 
             // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre))) && (currY <= (fovY + (fovWidthMidPost)))){
-                sectionWidth = paraLength;
-                currentSum = (((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]) * ( paraLength / rgcparams.divFactors[1] ));
-                int rightAdder = paraLength/2;
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1] + ((currY - (fovY - (fovWidthMidPre)))/rgcparams.divFactors[1] * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength))) / rgcparams.divFactors[1]));
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (currX - (fovX + fovWidthMidPost + 1))/rgcparams.divFactors[1] + ((currY - (fovY - (fovWidthMidPre)))/rgcparams.divFactors[1] * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (rgcparams.foveaWidth) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + 1))) / rgcparams.divFactors[1]));
                 }
             }
 
                 // Checks if current index is in the top or bottom sections
             else {
-                // Top Section
-                if(currY < fovY){
-                    checkr = 3;
-                    sectionWidth = ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]);
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1] + (((currY - (fovY - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1]) * sectionWidth)) + RGCoffset;
-                }
-                    // Bottom Section
-                else {
-                    checkr = 4;
-                    sectionWidth = ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[1]);
-                    currentSum = (sectionWidth * ( paraLength / rgcparams.divFactors[1] )) + ((paraLength) * (fovWidth/rgcparams.divFactors[1]));
-                    compIndex = ((currX - (fovX - (paraLength + fovWidthMidPre)))/rgcparams.divFactors[1] + ((currY - (fovY + (fovWidthMidPost + 1)))/rgcparams.divFactors[1] * sectionWidth)) + RGCoffset + currentSum;
-                }
-
-                //--------------------------X--------------------------
+                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                       (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                       (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                       (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength))) / rgcparams.divFactors[1]));
 
             }
 
             // Entering data
-            rgcLeft[compIndex] = compIndex;
+            rgcLeftDevice[yMatch[currY]][rgcX] = rgcX;
         }
     }
     // ---------------------------------- X -----------------------------------
@@ -386,16 +386,16 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
 
         float midLeft = ((float)perspLeft[i])/255;
         float surLeft = (
-                // Center - 2
-                (0.0416667 * (float)perspLeft[(i - (2 * frameW)) - 2]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW)) - 1]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW))]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW)) + 1]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW)) + 2]) +
-                // Center - 1
-                (0.0416667 * (float)perspLeft[(i - frameW) - 2]) +(0.0416667 * (float)perspLeft[(i - frameW) - 1]) + (0.0416667 * (float)perspLeft[(i - frameW)]) + (0.0416667 * (float)perspLeft[(i - frameW) + 1]) + (0.0416667 * (float)perspLeft[(i - frameW) + 2]) +
-                // Center
-                (0.0416667 * (float)perspLeft[(i) - 2]) + (0.0416667 * (float)perspLeft[(i) - 1]) + (0.0416667 * (float)perspLeft[(i) + 1]) + (0.0416667 * (float)perspLeft[(i) + 2]) +
-                // Center + 1
-                (0.0416667 * (float)perspLeft[(i) + frameW - 2]) + (0.0416667 * (float)perspLeft[(i) + frameW - 1]) + (0.0416667 * (float)perspLeft[(i) + frameW]) +(0.0416667 * (float)perspLeft[(i) + frameW + 1]) + (0.0416667 * (float)perspLeft[(i) + frameW + 2]) +
-                // Center + 2
-                (0.0416667 * (float)perspLeft[(i + (2 * frameW)) - 2]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW)) - 1]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW))]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW)) + 1]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW)) + 2]))/255;
+                                // Center - 2
+                                (0.0416667 * (float)perspLeft[(i - (2 * frameW)) - 2]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW)) - 1]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW))]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW)) + 1]) + (0.0416667 * (float)perspLeft[(i - (2 * frameW)) + 2]) +
+                                // Center - 1
+                                (0.0416667 * (float)perspLeft[(i - frameW) - 2]) +(0.0416667 * (float)perspLeft[(i - frameW) - 1]) + (0.0416667 * (float)perspLeft[(i - frameW)]) + (0.0416667 * (float)perspLeft[(i - frameW) + 1]) + (0.0416667 * (float)perspLeft[(i - frameW) + 2]) +
+                                // Center
+                                (0.0416667 * (float)perspLeft[(i) - 2]) + (0.0416667 * (float)perspLeft[(i) - 1]) + (0.0416667 * (float)perspLeft[(i) + 1]) + (0.0416667 * (float)perspLeft[(i) + 2]) +
+                                // Center + 1
+                                (0.0416667 * (float)perspLeft[(i) + frameW - 2]) + (0.0416667 * (float)perspLeft[(i) + frameW - 1]) + (0.0416667 * (float)perspLeft[(i) + frameW]) +(0.0416667 * (float)perspLeft[(i) + frameW + 1]) + (0.0416667 * (float)perspLeft[(i) + frameW + 2]) +
+                                // Center + 2
+                                (0.0416667 * (float)perspLeft[(i + (2 * frameW)) - 2]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW)) - 1]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW))]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW)) + 1]) + (0.0416667 * (float)perspLeft[(i + (2 * frameW)) + 2]))/255;
         float res  = midLeft - surLeft;
         if(index < 0) res = -1;
         else res  = midLeft - surLeft;
@@ -404,49 +404,45 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) % rgcparams.divFactors[2] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength))) % rgcparams.divFactors[2] == 1)){
+        if (((currX) % rgcparams.divFactors[2] == 0) && ((currY) % rgcparams.divFactors[2] == 0)){
 
-            // To check if the current index is in the middle
+            // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))){
-                sectionWidth = (periLength / rgcparams.divFactors[2]) * 2;
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]) * (periLength / rgcparams.divFactors[2]);
-                int rightAdder = (periLength / rgcparams.divFactors[2]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2] + (((currY - (fovY - (paraLength + fovWidthMidPre))))/rgcparams.divFactors[2] * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) / rgcparams.divFactors[2]));
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + ((currX - (fovX + (paraLength + fovWidthMidPost + 1))))/rgcparams.divFactors[2] + (((currY - (fovY - ((paraLength + fovWidthMidPre)))))/rgcparams.divFactors[2] * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (rgcparams.foveaWidth) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + 1))) / rgcparams.divFactors[2]));
                 }
             }
 
                 // Checks if current index is in the top or bottom sections
             else {
-                // Top Section
-                if(currY < fovY){
-                    checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2]) * sectionWidth)) + RGCoffset;
-                }
-                    // Bottom Section
-                else {
-                    checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2)) / rgcparams.divFactors[2]) * (periLength / rgcparams.divFactors[2])) + (((2 * periLength) / rgcparams.divFactors[2]) * ((fovWidth + (2 * paraLength)) / rgcparams.divFactors[2]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength)))))/rgcparams.divFactors[2] + (((currY - (fovY + ((paraLength + fovWidthMidPost + 1)))))/rgcparams.divFactors[2] * sectionWidth)) + RGCoffset + currentSum;
-                }
-
-                //--------------------------X--------------------------
+                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                       (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                       (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) / rgcparams.divFactors[2]));
 
             }
 
             // Entering data
-            rgcLeft[compIndex] = compIndex;
+            rgcLeftDevice[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -479,52 +475,45 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
         if(index < 0) res = -1;
         else res  = midLeft - surLeft;
 
-        int compIndex = 0;
-
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) % rgcparams.divFactors[3] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) % rgcparams.divFactors[3] == 1)){
+        if (((currX) % rgcparams.divFactors[3] == 0) && ((currY) % rgcparams.divFactors[3] == 0)){
 
-            // To check if the current index is in the middle
+            // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))){
-                sectionWidth = ((rgcparams.oz1side / rgcparams.divFactors[3]) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]) * (rgcparams.oz1up / rgcparams.divFactors[3]);
-                int rightAdder = (rgcparams.oz1side / rgcparams.divFactors[3]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side)))))/rgcparams.divFactors[3] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength))))/rgcparams.divFactors[3]) * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) / rgcparams.divFactors[3]));
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength+ 1))))/rgcparams.divFactors[3]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength)))))/rgcparams.divFactors[3]) * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (rgcparams.foveaWidth) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + 1))) / rgcparams.divFactors[3]));
                 }
             }
 
                 // Checks if current index is in the top or bottom sections
             else {
-                // Top Section
-                if(currY < fovY){
-                    checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side)))))/rgcparams.divFactors[3] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1up)))))/rgcparams.divFactors[3]) * sectionWidth)) + RGCoffset;
-                }
-                    // Bottom Section
-                else {
-                    checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2)) / rgcparams.divFactors[3]) * (rgcparams.oz1up / rgcparams.divFactors[3])) + ((((rgcparams.oz1side / rgcparams.divFactors[3]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength)) / rgcparams.divFactors[3]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side)))))/rgcparams.divFactors[3] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + 1)))))/rgcparams.divFactors[3] * sectionWidth)) + RGCoffset + currentSum;
-                }
-
-                //--------------------------X--------------------------
+                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                       (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) / rgcparams.divFactors[3]));
 
             }
 
             // Entering data
-            rgcLeft[compIndex] = compIndex;
+            rgcLeftDevice[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -590,49 +579,43 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) % rgcparams.divFactors[4] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) % rgcparams.divFactors[4] == 1)){
+        if (((currX) % rgcparams.divFactors[4] == 0) && ((currY) % rgcparams.divFactors[4] == 0)){
 
-            // To check if the current index is in the middle
+            // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)))){
-                sectionWidth = ((rgcparams.oz2side / rgcparams.divFactors[4]) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]) * (rgcparams.oz2up / rgcparams.divFactors[4]);
-                int rightAdder = (rgcparams.oz2side / rgcparams.divFactors[4]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)))))/rgcparams.divFactors[4] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + rgcparams.oz1up))))/rgcparams.divFactors[4]) * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) / rgcparams.divFactors[4]));
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + rgcparams.oz1side + 1))))/rgcparams.divFactors[4]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + rgcparams.oz1up)))))/rgcparams.divFactors[4]) * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (rgcparams.foveaWidth) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + 1))) / rgcparams.divFactors[4]));
                 }
             }
 
                 // Checks if current index is in the top or bottom sections
             else {
-                // Top Section
-                if(currY < fovY){
-                    checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)))))/rgcparams.divFactors[4] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))))/rgcparams.divFactors[4]) * sectionWidth)) + RGCoffset;
-                }
-                    // Bottom Section
-                else {
-                    checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2)) / rgcparams.divFactors[4]) * (rgcparams.oz2up / rgcparams.divFactors[4])) + ((((rgcparams.oz2side / rgcparams.divFactors[4]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * rgcparams.oz1up)) / rgcparams.divFactors[4]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)))))/rgcparams.divFactors[4] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + rgcparams.oz1up + 1)))))/rgcparams.divFactors[4] * sectionWidth)) + RGCoffset + currentSum;
-                }
-
-                //--------------------------X--------------------------
+                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) / rgcparams.divFactors[4]));
 
             }
 
             // Entering data
-            rgcLeft[compIndex] = compIndex;
+            rgcLeftDevice[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -715,49 +698,43 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
         int compIndex = 0;
 
         // Picking out units of computation
-        if (((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) % rgcparams.divFactors[5] == 1) && ((currY - (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) % rgcparams.divFactors[5] == 1)){
+        if (((currX) % rgcparams.divFactors[5] == 0) && ((currY) % rgcparams.divFactors[5] == 0)){
 
-            // To check if the current index is in the middle
+            // To check if the current index is in the middle,vertically
             if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))){
-                sectionWidth = ((rgcparams.oz3side / rgcparams.divFactors[5]) * 2);
-                currentSum = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]) * (rgcparams.oz3up / rgcparams.divFactors[5]);
-                int rightAdder = (rgcparams.oz3side / rgcparams.divFactors[5]);
 
                 // -------------- Translating Indices ----------------
                 //Left Section
                 if(currX < fovX){
                     checkr = 1;
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side)))))/rgcparams.divFactors[5] + ((((currY - (fovY - (paraLength + fovWidthMidPre + periLength + rgcparams.oz1up + rgcparams.oz2up))))/rgcparams.divFactors[5]) * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) / rgcparams.divFactors[5]));
                 }
                     // Right Section
                 else {
                     checkr = 2;
-                    compIndex = (rightAdder + (((currX - (fovX + (paraLength + fovWidthMidPost + periLength + rgcparams.oz1side + rgcparams.oz2side + 1))))/rgcparams.divFactors[5]) + ((((currY - (fovY - ((paraLength + fovWidthMidPre + periLength + rgcparams.oz1up + rgcparams.oz2up)))))/rgcparams.divFactors[5]) * sectionWidth)) + RGCoffset + currentSum;
+                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (rgcparams.foveaWidth) +
+                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
+                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
+                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
+                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
+                           (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + 1))) / rgcparams.divFactors[5]));
                 }
             }
 
                 // Checks if current index is in the top or bottom sections
             else {
-                // Top Section
-                if(currY < fovY){
-                    checkr = 3;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]);
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side)))))/rgcparams.divFactors[5] + ((((currY - (fovY - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up)))))/rgcparams.divFactors[5]) * sectionWidth)) + RGCoffset;
-                }
-                    // Bottom Section
-                else {
-                    checkr = 4;
-                    sectionWidth = ((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]);
-                    currentSum = (((fovWidth + (paraLength * 2) + (periLength * 2) + (rgcparams.oz1side * 2) + (rgcparams.oz2side * 2) + (rgcparams.oz3side * 2)) / rgcparams.divFactors[5]) * (rgcparams.oz3up / rgcparams.divFactors[5])) + ((((rgcparams.oz3side / rgcparams.divFactors[5]) * 2)) * ((fovWidth + (2 * paraLength) + (2 * periLength) + (2 * rgcparams.oz1up) + (2 * rgcparams.oz2up)) / rgcparams.divFactors[5]));
-                    compIndex = (((currX - (fovX - ((fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side)))))/rgcparams.divFactors[5] + (((currY - (fovY + ((paraLength + fovWidthMidPost + periLength + rgcparams.oz1up + rgcparams.oz2up + 1)))))/rgcparams.divFactors[5] * sectionWidth)) + RGCoffset + currentSum;
-                }
-
-                //--------------------------X--------------------------
+                checkr = 3;
+                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX) / rgcparams.divFactors[5]));
 
             }
 
             // Entering data
-            rgcLeft[compIndex] = compIndex;
+            rgcLeftDevice[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -871,8 +848,12 @@ int visualPass1 (){
         rgcparams.oz3side = 765;
         rgcparams.divFactors[5] = 7; // 83,686
     }
+    rgcparams.perspHeight = perspHeight;
+    rgcparams.perspWidth = perspWidth;
 
-    int yMatch[perspHeight], xWidths[perspHeight], rgcHeight, tmpxSum, rgcArrayHeight = -1;
+    int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, rgcHeight, tmpxSum, rgcArrayHeight = -1;
+    yMatchHost = (int *)malloc(perspHeight * sizeof(int));
+    xWidthsHost = (int *)malloc(perspHeight * sizeof(int));
     for(int i = 0; i < perspHeight; i+=1){
         tmpxSum =
                 // ------------------------------------ Side series ----------------------------------
@@ -880,27 +861,27 @@ int visualPass1 (){
                 // - OZ3
                 (int)(((((i % rgcparams.divFactors[5] == 0) && (i >= 0 && i < perspHeight)) ? 1 : 0) * (2 * ((double)rgcparams.oz3side / (double)rgcparams.divFactors[5]))) +
 
-                        ((((i % rgcparams.divFactors[5] == 0) && ((i >= 0 && i < (double)rgcparams.oz3up) || (i >= (perspHeight - (double)rgcparams.oz3up) && i < perspHeight))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side) + (2 * (double)rgcparams.oz2side)) / (double)rgcparams.divFactors[5])))) +
+                      ((((i % rgcparams.divFactors[5] == 0) && ((i >= 0 && i < (double)rgcparams.oz3up) || (i >= (perspHeight - (double)rgcparams.oz3up) && i < perspHeight))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side) + (2 * (double)rgcparams.oz2side)) / (double)rgcparams.divFactors[5])))) +
 
                 // - OZ2
                 (int)(((((i % rgcparams.divFactors[4] == 0) && (i >= (double)rgcparams.oz3up && i < (perspHeight - (double)rgcparams.oz3up))) ? 1 : 0) * (2 * ((double)rgcparams.oz2side / (double)rgcparams.divFactors[4]))) +
 
-                        ((((i % rgcparams.divFactors[4] == 0) && ((i >= (double)rgcparams.oz3up && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) && i < (perspHeight - (double)rgcparams.oz3up)))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side)) / (double)rgcparams.divFactors[4])))) +
+                      ((((i % rgcparams.divFactors[4] == 0) && ((i >= (double)rgcparams.oz3up && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) && i < (perspHeight - (double)rgcparams.oz3up)))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side)) / (double)rgcparams.divFactors[4])))) +
 
                 // - OZ1
                 (int)(((((i % rgcparams.divFactors[3] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)))) ? 1 : 0) * (2 * ((double)rgcparams.oz1side / (double)rgcparams.divFactors[3]))) +
 
-                        ((((i % rgcparams.divFactors[3] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength)) / (double)rgcparams.divFactors[3])))) +
+                      ((((i % rgcparams.divFactors[3] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength)) / (double)rgcparams.divFactors[3])))) +
 
                 // - Peri
                 (int)(((((i % rgcparams.divFactors[2] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)))) ? 1 : 0) * (2 * ((double)rgcparams.periLength / (double)rgcparams.divFactors[2]))) +
 
-                        ((((i % rgcparams.divFactors[2] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[2])))) +
+                      ((((i % rgcparams.divFactors[2] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[2])))) +
 
                 // - Para
                 (int)(((((i % rgcparams.divFactors[1] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)))) ? 1 : 0) * (2 * ((double)rgcparams.paraLength / (double)rgcparams.divFactors[1]))) +
 
-                        ((((i % rgcparams.divFactors[1] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth) / (double)rgcparams.divFactors[1])))) +
+                      ((((i % rgcparams.divFactors[1] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth) / (double)rgcparams.divFactors[1])))) +
 
                 // - Fovea
                 ((((i % rgcparams.divFactors[0] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)))) ? 1 : 0) * (double)rgcparams.foveaWidth);
@@ -908,18 +889,18 @@ int visualPass1 (){
 
         if(tmpxSum != 0){
             rgcArrayHeight+=1;
-            xWidths[rgcArrayHeight] = tmpxSum;
-            // cout << xWidths[rgcArrayHeight]  << endl;
+            xWidthsHost[rgcArrayHeight] = tmpxSum;
+            // cout << xWidthsHost[rgcArrayHeight]  << endl;
         }
-        yMatch[i] = rgcArrayHeight;
+        yMatchHost[i] = rgcArrayHeight;
 
-        // cout <<"i : " << i <<  " || Temp Sum : " << tmpxSum << " || yMatch : " << yMatch[i] << endl;
+        // cout <<"i : " << i <<  " || Temp Sum : " << tmpxSum << " || yMatchHost : " << yMatchHost[i] << endl;
     }
     rgcArrayHeight += 1;
     cout << "rgcArrayHeight : " << rgcArrayHeight << endl;
 
     for (int i = 0; i < rgcArrayHeight; i+=1){
-        cout << "xWidths : " << xWidths[i] << endl;
+        // cout << "xWidthsHost : " << xWidthsHost[i] << endl;
     }
 
 
@@ -935,9 +916,6 @@ int visualPass1 (){
         printf("Couldn't allocate frameLeft buffer\n");
     }
 
-    int i = 0;
-    // while (i < 1) {
-    i += 1;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // Set up orphographic projection
@@ -998,12 +976,15 @@ int visualPass1 (){
 
     int deviceCount;
     cudaGetDeviceCount(&deviceCount);
-    float *rgcsLeft, *rgcsRight, *hostTest, *rgcTests, *hostRGCTests, **rgcLeftHost, **rgcRightHost, **rgcLeftDev, **rgcRightDev;
+    float *rgcsLeft, *rgcsRight, *hostTest, *rgcTests, *hostRGCTests, **rgcLeftHost, **rgcRightHost, **rgcLeftDev, **rgcRightDev, **rgcPin;
     char *rgcLayout, *layoutTest;
     rgcLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    rgcPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
     cudaMalloc(&rgcLeftDev, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&rgcRightDev, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&xWidthsDev, perspHeight * sizeof(int));
+    cudaMalloc(&yMatchDev, perspHeight * sizeof(int));
     hostTest = (float*)malloc(numOfPixels*sizeof(float));
     hostRGCTests = (float*)malloc(numOfPixels*sizeof(float));
     layoutTest = (char*)malloc(numOfPixels*sizeof(char));
@@ -1017,8 +998,9 @@ int visualPass1 (){
     cudaSetDevice(0);
     cudaStream_t str1 ;
     for(int i = 0; i < rgcArrayHeight; i+=1){
-        cudaMalloc((void **)&rgcLeftHost[i], xWidths[i] * sizeof(float));
-        cudaMalloc((void **)&rgcRightHost[i], xWidths[i] * sizeof(float));
+        rgcPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+        cudaMalloc((void **)&rgcLeftHost[i], xWidthsHost[i] * sizeof(float));
+        cudaMalloc((void **)&rgcRightHost[i], xWidthsHost[i] * sizeof(float));
     }
 
     cudaMemcpy(rgcLeftDev, rgcLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
@@ -1161,6 +1143,8 @@ int visualPass1 (){
     cudaSetDevice(0);
     cudaMemcpy(devTrans, params.transform, params.ntransform * sizeof(TRANSFORM), cudaMemcpyHostToDevice);
     cudaMemcpy(retinaDivs, rgcparams.divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(yMatchDev, yMatchHost, perspHeight * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(xWidthsDev, xWidthsHost, perspHeight * sizeof(int), cudaMemcpyHostToDevice);
 //    cudaMemcpy(Y_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
 //    cudaMemcpy(U_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
 //    cudaMemcpy(V_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
@@ -1173,6 +1157,8 @@ int visualPass1 (){
     params.transform = devTrans;
 
     int frameStorageCountr = 0;
+
+    cout << "yMatch : " << yMatchHost[2000] << endl;
 
 // -----------------------------------------
 
@@ -1208,7 +1194,7 @@ int visualPass1 (){
 //        if(i%36 == 35){
 //            cudaSetDevice(0);
 //            cudaDeviceSynchronize();
-            formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, perspHeight, perspWidth, rgcparams, perspLeft, perspRight, rgcsLeft, rgcsRight, rgcTests, rgcLayout, rgcLeftDev, rgcRightDev);
+    formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, perspHeight, perspWidth, rgcparams, perspLeft, perspRight, rgcsLeft, rgcsRight, rgcTests, rgcLayout, rgcLeftDev, rgcRightDev, xWidthsDev, yMatchDev);
 //            cudaDeviceSynchronize();
 //        }
 //
@@ -1231,7 +1217,17 @@ int visualPass1 (){
     cudaMemcpy(hostTest, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(hostRGCTests, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-    cout << (int)hostTest[300000] << endl;
+    cudaMemcpy(rgcLeftHost, rgcLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+    for(int p = 0; p < 300; p+=1){
+        cudaMemcpy(rgcPin[p], rgcLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+        for(int j = 0; j < xWidthsHost[p]; j+=1){
+            cout << rgcPin[p][j] << " - ";
+        }
+        cout << endl;
+    }
+
+    // cout << (int)hostTestr[5] << endl;
 
 //    glBindTexture(GL_TEXTURE_2D, tex_handle);
 //    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
