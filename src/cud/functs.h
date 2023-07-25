@@ -10,7 +10,7 @@ typedef struct {
 } XYZ;
 
 typedef struct {
-    int foveaWidth, paraLength, periLength, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side;
+    int foveaWidth, paraLength, periLength, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, perspHeight, perspWidth;
     int *divFactors;
 } RGCPARAMS;
 
