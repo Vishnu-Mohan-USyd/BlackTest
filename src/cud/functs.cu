@@ -765,7 +765,9 @@ void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams,
                     checkr = 5;
                     rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (((currY > 0) && (currY < rgcparams.perspHeight)) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
 
+                            // side series (that's why we multiply by 2)
                             (int)((((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * 2 * (((currY >= ((double)rgcparams.oz3up)) && (currY < ((double)rgcparams.perspHeight - ((double)rgcparams.oz3up)))) ? 1 : 0) * ((double)rgcparams.oz2side / (double)rgcparams.divFactors[4])) +
+                            // mid series
                            (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((((currY >= ((double)rgcparams.oz3up)) & (currY < ((double)rgcparams.oz3up + (double)rgcparams.oz2up))) || ((currY < ((double)rgcparams.perspHeight - ((double)rgcparams.oz3up))) & (currY >= ((double)rgcparams.perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side)) / (double)rgcparams.divFactors[4]))) +
 
                             (int)((((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * 2 * (((currY >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) && (currY < ((double)rgcparams.perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)))) ? 1 : 0) * ((double)rgcparams.oz1side / (double)rgcparams.divFactors[3])) +
@@ -1215,7 +1217,7 @@ int visualPass1 (){
 
     int frameStorageCountr = 0;
 
-    cout << "yMatch : " << yMatchHost[2000] << endl;
+    // cout << "yMatch : " << yMatchHost[2000] << endl;
 
 // -----------------------------------------
 
@@ -1275,20 +1277,20 @@ int visualPass1 (){
     cudaMemcpy(hostRGCTests, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
     cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(rgcLeftHost, rgcLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-    for(int p = 0; p < 70; p+=1){
+    for(int p = 0; p < rgcArrayHeight; p+=1){
         cudaMemcpy(rgcPin[p], rgcLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
-        //for(int j = 0; j < xWidthsHost[p]; j+=1){
-//            if(rgcPin[p][j] != j){
-//                cout << "Error at : " << p << " Index of Error is : " << j << endl;
-//            }
-
-
-        //}
+        //cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
         for(int j = 0; j < xWidthsHost[p]; j+=1){
-            cout << rgcPin[p][j] << " - ";
+            if(rgcPin[p][j] != j){
+                cout << "Error at : " << p << " Index of Error is : " << j << endl;
+            }
+
+
         }
-        cout << endl;
+//        for(int j = 0; j < xWidthsHost[p]; j+=1){
+//            cout << rgcPin[p][j] << " - ";
+//        }
+//        cout << endl;
     }
 
     // cout << (int)hostTestr[5] << endl;
