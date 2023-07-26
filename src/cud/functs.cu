@@ -23,6 +23,7 @@ using namespace std;
 PARAMS params;
 FRUSTUM frustum;
 RGCPARAMS rgcparams;
+RGCdev rgcdev;
 
 __global__
 void saxpy(int n, float a, float *x, float *y)
@@ -812,9 +813,7 @@ void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
 }
 
 
-int visualPass1 (){
-
-
+RGCdev visualPass1 (){
 
 
     // Video processing parameters
@@ -842,13 +841,11 @@ int visualPass1 (){
 
     if (!glfwInit()) {
         printf("Couldn't init GLFW\n");
-        return 1;
     }
 
     window = glfwCreateWindow(1280, 720, "Hello World", NULL, NULL);
     if (!window) {
         printf("Couldn't open window\n");
-        return 1;
     }
 
     glfwMakeContextCurrent(window);
@@ -1181,21 +1178,21 @@ int visualPass1 (){
     cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
     // Transfers RGC inputs back - required if doing neural computation on another GPU
-    cudaMemcpy(rgcLeftHost, rgcLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-    for(int p = 0; p < rgcArrayHeight; p+=1){
-        cudaMemcpy(rgcPin[p], rgcLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-
-        for(int j = 0; j < xWidthsHost[p]; j+=1){
-            if(rgcPin[p][j] != j){
-                cout << "Error at : " << p << " Index of Error is : " << j << endl;
-            }
-        }
-//        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+//    cudaMemcpy(rgcLeftHost, rgcLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+//    for(int p = 0; p < rgcArrayHeight; p+=1){
+//        cudaMemcpy(rgcPin[p], rgcLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+//
 //        for(int j = 0; j < xWidthsHost[p]; j+=1){
-//            cout << rgcPin[p][j] << " - ";
+//            if(rgcPin[p][j] != j){
+//                cout << "Error at : " << p << " Index of Error is : " << j << endl;
+//            }
 //        }
-//        cout << endl;
-    }
+////        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+////        for(int j = 0; j < xWidthsHost[p]; j+=1){
+////            cout << rgcPin[p][j] << " - ";
+////        }
+////        cout << endl;
+//    }
 
     // cout << (int)hostTestr[5] << endl;
 
@@ -1218,6 +1215,8 @@ int visualPass1 (){
     glfwPollEvents();
     //::getchar();
 
+    rgcdev.parvo = rgcLeftDev;
+    return rgcdev;
     // cudaFree(Y_1);
 //    cudaFree(Y_1);
 //    cudaFree(Y_2);
