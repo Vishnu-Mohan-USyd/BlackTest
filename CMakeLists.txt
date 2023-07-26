@@ -18,7 +18,7 @@ list(APPEND SOURCES
         src/cud/functs.h
         )
 
-add_executable(test1 src/cud/functs.cu src/entry.cpp src/cud/functs.h src/vidStuff/vidReader.h src/vidStuff/vidReader.cpp src/helper/helperFuncts.cpp src/helper/helperFuncts.h ${SOURCES} src/neurons/Neuron.cpp src/neurons/Neuron.h)
+add_executable(test1 src/cud/functs.cu src/entry.cpp src/cud/functs.h src/vidStuff/vidReader.h src/vidStuff/vidReader.cpp src/helper/helperFuncts.cpp src/helper/helperFuncts.h ${SOURCES} src/neurons/Neuron.cpp src/neurons/Neuron.h src/cud/rgc.cu src/cud/rgc.cuh)
 
 
 
