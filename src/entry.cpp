@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <iostream>
 #include "src/cud/functs.h"
+#include "src/cud/rgc.cuh"
 #include "lib/matplotplusplus/source/matplot/matplot.h"
 #include <random>
 #include <vector>
@@ -19,7 +20,7 @@ int main(void)
 //    printf("\x1B[34mHeight : \033[0m");
     // vector<vector<float>> temp;
     // mrain(temp);
-    visualPass1();
+    rgcSpikers();
     // testFunct();
     return 0;
 }
