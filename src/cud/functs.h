@@ -6,6 +6,10 @@
 #ifndef TEST1_FUNCTS_H
 #define TEST1_FUNCTS_H
 typedef struct {
+    float ** magno, **parvo, **konio;
+} RGCdev;
+
+typedef struct {
     double x,y,z;
 } XYZ;
 
@@ -62,7 +66,7 @@ void CalcFrustum(void);
 XYZ CameraRay(double,double);
 XYZ VectorSum(double,XYZ,double,XYZ,double,XYZ,double,XYZ);
 
-int visualPass1();
+RGCdev visualPass1();
 int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
 void saxpy();
