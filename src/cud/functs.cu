@@ -126,7 +126,7 @@ XYZ VectorSum(double d1,XYZ p1,double d2,XYZ p2,double d3,XYZ p3,double d4,XYZ p
 }
 
 __global__
-void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRight, uint8_t  *perspRight, PARAMS deviceParams, FRUSTUM deviceFrust, TRANSFORM *testTrans)
+void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRight, uint8_t  *perspRight, PARAMS deviceParams, FRUSTUM deviceFrust)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -205,7 +205,7 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float *rgcLeft, float *rgcRight, float *rgcTestr, char *rgcLay, float** rgcLeftDevice, float** rgcRightDevice, int* xWidths, int* yMatch)
+void formRGCinputs(int foveaPoint, int frameH, int frameW , RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** rgcLeftDevice, float** rgcRightDevice, int* xWidths, int* yMatch)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -814,13 +814,7 @@ void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
 
 int visualPass1 (){
 
-    GLFWwindow* window;
-    int frCount = 0 ;
 
-    if (!glfwInit()) {
-        printf("Couldn't init GLFW\n");
-        return 1;
-    }
 
 
     // Video processing parameters
@@ -832,6 +826,23 @@ int visualPass1 (){
     if (!video_reader_open(&vr_stateRight, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachRight.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
+    }
+
+    // Allocate frameLeft buffer
+    constexpr int ALIGNMENT = 128;
+    const int frame_width = vr_stateLeft.width;
+    const int frame_height = vr_stateLeft.height;
+    const int perspHeight = 2160;
+    const int perspWidth = 3840;
+    int numOfPixels = frame_width * frame_height;
+    int *retinaDivs;
+
+    GLFWwindow* window;
+    int frCount = 0 ;
+
+    if (!glfwInit()) {
+        printf("Couldn't init GLFW\n");
+        return 1;
     }
 
     window = glfwCreateWindow(1280, 720, "Hello World", NULL, NULL);
@@ -854,23 +865,23 @@ int visualPass1 (){
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Allocate frameLeft buffer
-    constexpr int ALIGNMENT = 128;
-    const int frame_width = vr_stateLeft.width;
-    const int frame_height = vr_stateLeft.height;
-    const int perspHeight = 2160;
-    const int perspWidth = 3840;
-    int numOfPixels = frame_width * frame_height;
-    int * divFactors, * retinaDivs;
+    // Set up orphographic projection
+    int window_width, window_height;
+    glfwGetFramebufferSize(window, &window_width, &window_height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, window_width, window_height, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+
+
+    // Defining perspective windows
+
     rgcparams.divFactors = (int*)malloc(6 * sizeof(int));
 
-    divFactors = (int*)malloc(6*sizeof(int));
-    // cudaMallocHost((void**)&divFactors, sizeof(int));
-
-    cout << "Div Fac 1 : " << divFactors[1] << endl;
     if (perspWidth > 5000) {
-        cout << "Resolution of Video is 8K" << endl; //16592460 - foveal point
+        cout << "Resolution of Perspective is 8K" << endl;
         rgcparams.foveaWidth = 300;
         rgcparams.divFactors[0] = 1;
         rgcparams.paraLength = 200;
@@ -886,12 +897,9 @@ int visualPass1 (){
         rgcparams.oz3up = 600;
         rgcparams.oz3side = 1500;
         rgcparams.divFactors[5] = 12;
-
-
-
     }
     else if (perspWidth > 3000 && perspWidth < 5000){
-        cout << "Resolution of Video is 4K" << endl; //4145280 - foveal point
+        cout << "Resolution of Perspective is 4K" << endl; //4145280 - foveal point
         rgcparams.foveaWidth = 180;
         rgcparams.divFactors[0] = 1; // 32,400 - 129,600
         rgcparams.paraLength = 90;
@@ -908,11 +916,14 @@ int visualPass1 (){
         rgcparams.oz3side = 765;
         rgcparams.divFactors[5] = 7; // 83,686
     }
+
     rgcparams.perspHeight = perspHeight;
     rgcparams.perspWidth = perspWidth;
+    //------ Init - VAriables required to calculate RGC inputs in formRGCinputs -----------
     int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, rgcHeight, tmpxSum, rgcArrayHeight = -1;
     yMatchHost = (int *)malloc(perspHeight * sizeof(int));
     xWidthsHost = (int *)malloc(perspHeight * sizeof(int));
+    //------------------------------------------------------------------
     for(int i = 0; i < perspHeight; i+=1){
         tmpxSum =
                 // ------------------------------------ Side series ----------------------------------
@@ -945,98 +956,16 @@ int visualPass1 (){
                 // - Fovea
                 ((((i % rgcparams.divFactors[0] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)))) ? 1 : 0) * (double)rgcparams.foveaWidth);
 
-
         if(tmpxSum != 0){
             rgcArrayHeight+=1;
             xWidthsHost[rgcArrayHeight] = tmpxSum;
-            // cout << xWidthsHost[rgcArrayHeight]  << endl;
         }
         yMatchHost[i] = rgcArrayHeight;
-
-        // cout <<"i : " << i <<  " || Temp Sum : " << tmpxSum << " || yMatchHost : " << yMatchHost[i] << endl;
     }
     rgcArrayHeight += 1;
-    cout << "rgcArrayHeight : " << rgcArrayHeight << endl;
 
-    for (int i = 0; i < rgcArrayHeight; i+=1){
-        // cout << "xWidthsHost : " << xWidthsHost[i] << endl;
-    }
-
-
-    uint8_t* frame_data_left, *frame_data_right;
-    cout << frame_height << endl;
-    printf("\x1B[34m                         \tWidth : \033[0m"); cout << frame_width << endl;
-    if (posix_memalign((void**)&frame_data_left, ALIGNMENT, frame_width * frame_height * 4) != 0) {
-        cout << "ERROR!!" << endl;
-        printf("Couldn't allocate frameLeft buffer\n");
-    }
-    if (posix_memalign((void**)&frame_data_right, ALIGNMENT, frame_width * frame_height * 4) != 0) {
-        cout << "ERROR!!" << endl;
-        printf("Couldn't allocate frameLeft buffer\n");
-    }
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Set up orphographic projection
-    int window_width, window_height;
-    glfwGetFramebufferSize(window, &window_width, &window_height);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, window_width, window_height, 0, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-
-    // Read a new frameLeft and load it into texture
-    int64_t pts;
-    AVFrame* frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
-    AVFrame* frameRight = video_reader_read_frame(&vr_stateRight, frame_data_right, &pts);
-
-//    static bool first_frame = true;
-//    if (first_frame) {
-//        glfwSetTime(0.0);
-//        first_frame = false;
-//    }
-
-
-
-    int height = frameLeft->height, width = frameLeft->width;
-    int u = 0, p_y = 0, p_uv = 0, corrID = 0;
-    uint8_t* dataLeft = new uint8_t [height * width * 4];
-    uint8_t* dataRight = new uint8_t [height * width * 4];
-    for (int y = 0; y < frameLeft->height; y++){
-        for (int x = 0; x < frame_width; x++){
-            p_y = (y * width) + x;
-
-            corrID = ((y/2) * frameLeft->linesize[2]) + (x / 2);
-
-            // R
-            dataLeft[u] = frameLeft->data[0][p_y] + (1.370705 * (frameLeft->data[2][corrID] - 128));
-            dataRight[u] = frameRight->data[0][p_y] + (1.370705 * (frameRight->data[2][corrID] - 128));
-
-            // G
-            dataLeft[u + 1] = frameLeft->data[0][p_y] - (0.337633 * (frameLeft->data[1][corrID] - 128)) - (0.698001 * (frameLeft->data[2][corrID] - 128));
-            dataRight[u + 1] = frameRight->data[0][p_y] - (0.337633 * (frameRight->data[1][corrID] - 128)) - (0.698001 * (frameRight->data[2][corrID] - 128));
-
-            // B
-            dataLeft[u + 2] = frameLeft->data[0][p_y] + 1.732446 * (frameLeft->data[1][corrID] - 128);
-            dataRight[u + 2] = frameRight->data[0][p_y] + 1.732446 * (frameRight->data[1][corrID] - 128);
-
-            // A
-            dataLeft[u + 3] = frameLeft->data[0][p_y];
-            dataRight[u + 3] = frameRight->data[0][p_y];
-//                if (x == 2 & y == 2)
-//                    cout << "rep : " << i << " || Height : " << y << " || p_y value : " << p_y << " || corrID : " << corrID <<
-//                         " || R : " << (int) dataLeft[u] << " || Y : " << (int) frameLeft->dataLeft[0][p_y] << " || U : " << (int) frameLeft->dataLeft[1][corrID] << " || V : " <<
-//                         (int) frameLeft->dataLeft[2][corrID] << endl;
-
-            u+=4;
-        }
-    }
-
-
-    int deviceCount;
-    cudaGetDeviceCount(&deviceCount);
-    float *rgcsLeft, *rgcsRight, *hostTest, *rgcTests, *hostRGCTests, **rgcLeftHost, **rgcRightHost, **rgcLeftDev, **rgcRightDev, **rgcPin;
-    char *rgcLayout, *layoutTest;
+    //------- Prep - the 2D arrays needed to capture RGC input ----------------
+    float **rgcLeftHost, **rgcRightHost, **rgcLeftDev, **rgcRightDev, **rgcPin;
     rgcLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
@@ -1044,18 +973,7 @@ int visualPass1 (){
     cudaMalloc(&rgcRightDev, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&xWidthsDev, perspHeight * sizeof(int));
     cudaMalloc(&yMatchDev, perspHeight * sizeof(int));
-    hostTest = (float*)malloc(numOfPixels*sizeof(float));
-    hostRGCTests = (float*)malloc(numOfPixels*sizeof(float));
-    layoutTest = (char*)malloc(numOfPixels*sizeof(char));
-    ::uint8_t *Y_1, *U_1, *V_1, *worldLeft, *worldRight;
-    ::uint8_t *currentFrameLeft, *currentFrameRight, *pinnedTemp;
-    uint8_t *perspHost, *perspLeft, *perspRight, *persp1;
-    PARAMS *testparams;
-    FRUSTUM testFrust;
-    TRANSFORM *devTrans;
 
-    cudaSetDevice(0);
-    cudaStream_t str1 ;
     for(int i = 0; i < rgcArrayHeight; i+=1){
         rgcPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcLeftHost[i], xWidthsHost[i] * sizeof(float));
@@ -1064,12 +982,36 @@ int visualPass1 (){
 
     cudaMemcpy(rgcLeftDev, rgcLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     cudaMemcpy(rgcRightDev, rgcRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    // -------------------------------------------------------------------
 
 
+    // ---------------- Init - Frame stuff for world data capture -----------------------
+    uint8_t* frame_data_left, *frame_data_right;
+    // Colour printing
+    //printf("\x1B[34m                         \tWidth : \033[0m"); cout << frame_width << endl;
+    if (posix_memalign((void**)&frame_data_left, ALIGNMENT, frame_width * frame_height * 4) != 0) {
+        cout << "ERROR!!" << endl;
+        printf("Couldn't allocate frameLeft buffer\n");
+    }
+    if (posix_memalign((void**)&frame_data_right, ALIGNMENT, frame_width * frame_height * 4) != 0) {
+        cout << "ERROR!!" << endl;
+        printf("Couldn't allocate frameRight buffer\n");
+    }
+    // Read a new frameLeft and load it into texture
+    int64_t pts;
+    int u = 0, p_y = 0, p_uv = 0, corrID = 0;
+    AVFrame* frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
+    AVFrame* frameRight = video_reader_read_frame(&vr_stateRight, frame_data_right, &pts);
+    int height = frameLeft->height, width = frameLeft->width;
+    uint8_t* dataLeft = new uint8_t [height * width * 4];
+    uint8_t* dataRight = new uint8_t [height * width * 4];
+    // -------------------------------------------------------------------
+
+    // -------------------- Init - perspective parameter initialization -----------------------
     params.perspWidth = perspWidth;
     params.perspHeight = perspHeight;
-    params.worldWidth = width;
-    params.worldHeight = height;
+    params.worldWidth = frameLeft->width;
+    params.worldHeight = frameLeft->height;
     params.hoffset = 0;            // Horizontal offaxis amount as percentage for shift lens
     params.voffset = 0;
     params.antialias = 2;          // Supersampling antialiasing;
@@ -1083,35 +1025,53 @@ int visualPass1 (){
     params.ntransform = 0;
     params.debug = false;
 
-//    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
-//                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
-//    params.transform[params.ntransform].axis = ZPAN;
-//    params.transform[params.ntransform].value = (M_PI / 180)*(-30);
-//    params.ntransform++;
-//    for (int j=0;j<params.ntransform;j++) {
-//        params.transform[j].cvalue = cos(params.transform[j].value);
-//        params.transform[j].svalue = sin(params.transform[j].value);
-//    }
+    // --------------------------------------------------------
+
+     //----------------- Sample transformation --------------------------
+    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
+                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
+    params.transform[params.ntransform].axis = ZPAN;
+    params.transform[params.ntransform].value = (M_PI / 180)*(-60);
+    params.ntransform++;
+    for (int j=0;j<params.ntransform;j++) {
+        params.transform[j].cvalue = cos(params.transform[j].value);
+        params.transform[j].svalue = sin(params.transform[j].value);
+    }
+     //--------------------------------------------------------
+
+
 
     cudaDeviceProp a{};
     cudaSetDevice(0);
     cudaGetDeviceProperties(&a, 0);
+    std::cout << "Device Overlap : " << a.deviceOverlap << endl;
 
-    std::cout << "Device Overlap :         " << a.deviceOverlap << endl;
+    // ------------- Init - Perspective and World frame variables in world2persp ------------------
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+    cudaSetDevice(0);
 
+
+    ::uint8_t *worldLeft, *worldRight;
+    ::uint8_t *currentFrameLeft, *currentFrameRight, *pinnedTemp;
+    uint8_t *perspHost, *perspLeft, *perspRight, *persp1;
+    PARAMS *testparams;
+    FRUSTUM testFrust;
+    TRANSFORM *devTrans;
+    // CUDA variables for device 0
     cudaStream_t memStream1, memStream2, funcStream1, funcStream2 ;
+    // ------------------------------------------------------------------------------
+
+    // ------------------- Frustum calculation for world2persp ---------------------------------
 
     CalcFrustum();
 
-    //----------------------------------------------------------
+    // ------------------------------------------------------------------------------------
 
-
-
-    //----------------------------------------------------------
+    // -------------------- Prep - stuff for world2persp ----------------------------------
     cudaSetDevice(0);
     cudaStreamCreate ( &memStream1) ;
     cudaStreamCreate ( &funcStream1) ;
-    cudaMalloc(&Y_1, numOfPixels * sizeof(::uint8_t));
     cudaMalloc(&worldLeft, numOfPixels * 4 * sizeof(::uint8_t));
     cudaMalloc(&worldRight, numOfPixels * 4 * sizeof(::uint8_t));
     cudaMalloc(&perspLeft, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
@@ -1119,44 +1079,24 @@ int visualPass1 (){
     cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&devTrans, params.ntransform * sizeof(TRANSFORM));
     cudaMalloc(&retinaDivs, 6 * sizeof(int));
-    cudaMalloc(&rgcsLeft, numOfPixels * sizeof(float)); // RGC Currents are held here
-    cudaMalloc(&rgcsRight, numOfPixels * sizeof(float)); // RGC Currents are held here
-    cudaMalloc(&rgcTests, numOfPixels*sizeof(float)); // RGC Indexes are held here
-    cudaMalloc(&rgcLayout, numOfPixels*sizeof(char )); // RGC Layouts are held here
-    // cudaMalloc(&currentFrameLeft, numOfPixels*sizeof(float ));
-    cudaMalloc(&U_1, numOfPixels*sizeof(::uint8_t));
-    cudaMalloc(&V_1, numOfPixels*sizeof(::uint8_t));
     cudaSetDevice(1);
     cudaStreamCreate(&memStream2);
     cudaStreamCreate ( &funcStream2);
-
-    // RGC Layout Creation
-
-//    for (int i = 0; i < 1000000; i+=1){
-//
-//
-//    }
-
-    // Begin main loop
-
-
-
-
-
 
     currentFrameLeft = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
     currentFrameRight = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
     perspHost = (uint8_t*)malloc((perspHeight * perspWidth * 4) * sizeof(uint8_t));
 
-    // int64_t pts;
-    // AVFrame* frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
+
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
     cudaMallocHost((void**)&currentFrameLeft, bytes * 4);
     cudaMallocHost((void**)&currentFrameRight, bytes * 4);
-    cudaMallocHost((void**)&hostTest, numOfPixels * sizeof(float));
-    cudaMallocHost((void**)&hostRGCTests, numOfPixels * sizeof(float));
-    cudaMallocHost((void**)&layoutTest, numOfPixels * sizeof(float));
     cudaMallocHost((void**)&perspHost, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
+    // -------------------------------------------------------------------------------------
+
+    // ----------------------------- Loading data into frames for use as World -----------------------
+
+
     vector<::uint8_t *> frameArrayLeft, frameArrayRight;
     for (int fr = 0; fr < 9 ; fr+=1){
         frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
@@ -1182,21 +1122,19 @@ int visualPass1 (){
                 // A
                 dataLeft[u + 3] = frameLeft->data[0][p_y];
                 dataRight[u + 3] = frameRight->data[0][p_y];
-//                if (x == 2 & y == 2)
-//                    cout << "rep : " << i << " || Height : " << y << " || p_y value : " << p_y << " || corrID : " << corrID <<
-//                         " || R : " << (int) dataLeft[u] << " || Y : " << (int) frameLeft->dataLeft[0][p_y] << " || U : " << (int) frameLeft->dataLeft[1][corrID] << " || V : " <<
-//                         (int) frameLeft->dataLeft[2][corrID] << endl;
 
                 u+=4;
             }
         }
         frameArrayLeft.push_back(dataLeft);
         frameArrayRight.push_back(dataRight);
-        // cout << fr << endl;
     }
-    // ::memcpy(currentFrameLeft, frameArrayLeft[0], numOfPixels * sizeof(::uint8_t));
+
+    // ---------------------------------------------------------------------------------
+
+
+
     int frameIndex = 0;
-    // cout << (int) frameArrayLeft[5][8] << endl;
 
     // --------------- Initial prep ----------------------
     cudaSetDevice(0);
@@ -1204,36 +1142,90 @@ int visualPass1 (){
     cudaMemcpy(retinaDivs, rgcparams.divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(yMatchDev, yMatchHost, perspHeight * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(xWidthsDev, xWidthsHost, perspHeight * sizeof(int), cudaMemcpyHostToDevice);
-//    cudaMemcpy(Y_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-//    cudaMemcpy(U_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
-//    cudaMemcpy(V_1, currentFrameLeft, numOfPixels*sizeof(::uint8_t), cudaMemcpyHostToDevice);
     ::memcpy(currentFrameLeft, frameArrayLeft[7], numOfPixels * 4 * sizeof(::uint8_t));
     ::memcpy(currentFrameRight, frameArrayRight[7], numOfPixels * 4 * sizeof(::uint8_t));
-//            cudaMemcpyAsync(V_2, frameLeft->dataLeft[2], numOfPixels*sizeof(float), cudaMemcpyHostToDevice, stream2);
 
     cudaDeviceSynchronize();
     rgcparams.divFactors = retinaDivs;
     params.transform = devTrans;
 
     int frameStorageCountr = 0;
-
-    // cout << "yMatch : " << yMatchHost[2000] << endl;
-
-// -----------------------------------------
-
-
-    // std::vector<std::thread> threads;
-
-
-    float * y1;
+    // Starts clock
     auto start = std::chrono::high_resolution_clock::now();
     cudaMemcpyAsync(worldLeft, currentFrameLeft, numOfPixels * 4 * sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream1);
     cudaMemcpyAsync(worldRight, currentFrameRight, numOfPixels * 4 * sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream2);
     cudaDeviceSynchronize();
-    cout << "Frustum value : " << params.ntransform << endl;
-    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum, devTrans);
+
+    // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
+    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum);
     cudaDeviceSynchronize();
-    // world2PerspTest<<<((perspHeight * perspWidth * 4) + 1023)/1024, 1024, 0, funcStream1>>>(perspLeft, persp1);
+
+    // Forms RGC inputs
+    formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, perspHeight, perspWidth, rgcparams, perspLeft, perspRight, rgcLeftDev, rgcRightDev, xWidthsDev, yMatchDev);
+    cudaDeviceSynchronize();
+
+    cudaSetDevice(0);
+    cudaDeviceSynchronize();
+    cudaSetDevice(1);
+    cudaDeviceSynchronize();
+
+    // Stops clock
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+    cout << "Net duration of visual pass : " << duration << endl;
+
+    // Transfers computed values back to host
+    cudaSetDevice(0);
+
+    // Transfer perspective frame back after computation - not necessary
+    cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+
+    // Transfers RGC inputs back - required if doing neural computation on another GPU
+    cudaMemcpy(rgcLeftHost, rgcLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+    for(int p = 0; p < rgcArrayHeight; p+=1){
+        cudaMemcpy(rgcPin[p], rgcLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+
+        for(int j = 0; j < xWidthsHost[p]; j+=1){
+            if(rgcPin[p][j] != j){
+                cout << "Error at : " << p << " Index of Error is : " << j << endl;
+            }
+        }
+//        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+//        for(int j = 0; j < xWidthsHost[p]; j+=1){
+//            cout << rgcPin[p][j] << " - ";
+//        }
+//        cout << endl;
+    }
+
+    // cout << (int)hostTestr[5] << endl;
+
+
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
+
+    // Render whatever you want
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glBegin(GL_QUADS);
+    glTexCoord2d(0,0); glVertex2i(0, 0);
+    glTexCoord2d(1,0); glVertex2i(0 + 1280, 0);
+    glTexCoord2d(1,1); glVertex2i(0 + 1280, 0 + 720);
+    glTexCoord2d(0,1); glVertex2i(0, 0 + 720);
+    glEnd();
+    glDisable(GL_TEXTURE_2D);
+
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+    //::getchar();
+
+    // cudaFree(Y_1);
+//    cudaFree(Y_1);
+//    cudaFree(Y_2);
+
+
+}
+
+// world2PerspTest<<<((perspHeight * perspWidth * 4) + 1023)/1024, 1024, 0, funcStream1>>>(perspLeft, persp1);
 //    for(int i = 0; i < 1000; i+=1){
 //
 //        if(i%36 == 1){
@@ -1253,78 +1245,3 @@ int visualPass1 (){
 //        if(i%36 == 35){
 //            cudaSetDevice(0);
 //            cudaDeviceSynchronize();
-    formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(4145280, perspHeight, perspWidth, rgcparams, perspLeft, perspRight, rgcsLeft, rgcsRight, rgcTests, rgcLayout, rgcLeftDev, rgcRightDev, xWidthsDev, yMatchDev);
-//            cudaDeviceSynchronize();
-//        }
-//
-//        // eye1Pipeline<<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>>(0, numOfPixels, Y_1, U_1);
-//
-//        // cudaSetDevice(1);
-//    }
-
-    cudaSetDevice(0);
-    cudaDeviceSynchronize();
-    cudaSetDevice(1);
-    cudaDeviceSynchronize();
-
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-    cout << "Net duration of visual pass : " << duration << endl;
-
-    cudaSetDevice(0);
-    // cout << (int) hostTest[2] << endl;
-    cudaMemcpy(hostTest, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(hostRGCTests, rgcsLeft, numOfPixels * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-    cudaMemcpy(rgcLeftHost, rgcLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-    for(int p = 0; p < rgcArrayHeight; p+=1){
-        cudaMemcpy(rgcPin[p], rgcLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-        //cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
-        for(int j = 0; j < xWidthsHost[p]; j+=1){
-            if(rgcPin[p][j] != j){
-                cout << "Error at : " << p << " Index of Error is : " << j << endl;
-            }
-
-
-        }
-//        for(int j = 0; j < xWidthsHost[p]; j+=1){
-//            cout << rgcPin[p][j] << " - ";
-//        }
-//        cout << endl;
-    }
-
-    // cout << (int)hostTestr[5] << endl;
-
-//    glBindTexture(GL_TEXTURE_2D, tex_handle);
-//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
-//
-//    // Render whatever you want
-//    glEnable(GL_TEXTURE_2D);
-//    glBindTexture(GL_TEXTURE_2D, tex_handle);
-//    glBegin(GL_QUADS);
-//    glTexCoord2d(0,0); glVertex2i(0, 0);
-//    glTexCoord2d(1,0); glVertex2i(0 + 1280, 0);
-//    glTexCoord2d(1,1); glVertex2i(0 + 1280, 0 + 720);
-//    glTexCoord2d(0,1); glVertex2i(0, 0 + 720);
-//    glEnd();
-//    glDisable(GL_TEXTURE_2D);
-//
-//    glfwSwapBuffers(window);
-//    glfwPollEvents();
-//    for(int i = 0; i < 350840; i +=1){
-//        if(hostTest[i] != i){
-//            cout << "Unmatch at : " << i << " / "<< hostTest[i] << endl;
-//        }
-//    }
-
-
-
-//            cudaMemcpyAsync(frameLeft->dataLeft[2], V_2, numOfPixels*sizeof(float), cudaMemcpyDeviceToHost,stream1);
-// cout << "TestVal : " << (int) y1[2] << endl;
-
-    cudaFree(Y_1);
-//    cudaFree(Y_1);
-//    cudaFree(Y_2);
-
-
-}
