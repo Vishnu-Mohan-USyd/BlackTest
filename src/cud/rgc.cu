@@ -49,7 +49,7 @@ int rgcSpikers (){
     float **parvoLeftDev, **parvoRightDev, **parvoLeftHost, **parvoRightHost, **parvoPin,
             **magnoLeftDev, **magnoRightDev, **magnoLeftHost, **magnoRightHost;
     rets = visualPass1();
-    parvoPin = rets.parvo;
+    parvoPin = rets.midget;
     saxpy<<<(10000 + 1023)/1024, 1024, 0, str1>>>(x, parvoPin);
     cudaDeviceSynchronize();
     cudaMemcpy(xTemp, x, 10000 * sizeof(double), cudaMemcpyDeviceToHost);
