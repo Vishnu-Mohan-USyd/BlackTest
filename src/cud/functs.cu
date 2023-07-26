@@ -206,11 +206,13 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** midgetLeftDevice, float** midgetRightDevice, int* xWidths, int* yMatch)
+void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** midgetLeftDevice, float** midgetRightDevice, float** parasolLeftDevice, float** parasolRightDevice, float** konioLeftDevice, float** konioRightDevice, int* xWidths, int* yMatch)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     /* Here we aim to divide i into different retinal compartments
+     *
+     * Parasol to midget sizes have been found to vary from 10:1 at the periphery (25%) to 3:1 at central retina (10%)
      *
      * ---------------- For 8k Video --------------
      *
@@ -235,11 +237,11 @@ void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRigh
      * Total rgcLeft collection count - 777,526 RGCs
      * */
 
+    // midgetRightDevice[6][3] = 2;
     int fovY = (rgcparams.perspHeight / 2) - 1;
     int fovX = (rgcparams.perspWidth / 2) - 1;
     int currY = i/rgcparams.perspWidth;
     int currX = i - (currY * rgcparams.perspWidth);
-    // rgcLeft[i] = 2;
     int index = 0;
     int rgcX;
 
@@ -249,14 +251,10 @@ void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRigh
     int periLength = rgcparams.periLength;
 
 
-
-
-
-
-
     // ----------------------- Foveal Processing -----------------------
     if((currX >= fovX - fovWidthMidPre) && (currY >= fovY - fovWidthMidPre) && (currX <= fovX + fovWidthMidPost) && (currY <= fovY + fovWidthMidPost)){
         // rgcLeft[2] = 1;
+        // ------------------------- Calculating center-surround differences --------------------------
         float midLeft = ((float)perspLeft[i]) / 255;
         float surLeft = ((0.125 * (float)perspLeft[(i - rgcparams.perspWidth) - 1]) + (0.125 * (float)perspLeft[(i - rgcparams.perspWidth)]) + (0.125 * (float)perspLeft[(i - rgcparams.perspWidth) + 1]) +
                          (0.125 * (float)perspLeft[(i) - 1]) + (0.125 * (float)perspLeft[(i) + 1]) +
@@ -266,6 +264,7 @@ void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRigh
         else res  = midLeft - surLeft;
         if(res < 0) res = 0;
 
+        // --------------------------------------------------------------------------------------------
         // Converting from 2D modelled frame to linear RGC array
         rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
                (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
@@ -275,6 +274,7 @@ void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRigh
                (currX - (fovX - (fovWidthMidPre)));
 
         midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
+
     }
 
     // ---------------------- Parafoveal Processing --------------------
@@ -916,23 +916,51 @@ RGCdev visualPass1 (){
     rgcArrayHeight += 1;
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
-    float **midgetLeftHost, **midgetRightHost, **midgetLeftDev, **midgetRightDev, **midgetPin;
+    float **midgetLeftHost, **midgetRightHost, **midgetLeftDev, **midgetRightDev, **midgetPin,
+            **parasolLeftHost, **parasolRightHost, **parasolLeftDev, **parasolRightDev, **parasolPin,
+            **konioLeftHost, **konioRightHost, **konioLeftDev, **konioRightDev, **konioPin;
     midgetLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
     midgetRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    parasolLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    parasolRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    konioLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    konioRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
     midgetPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    parasolPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    konioPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
     cudaMalloc(&midgetLeftDev, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&midgetRightDev, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&parasolLeftDev, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&parasolRightDev, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&konioLeftDev, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&konioRightDev, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&xWidthsDev, perspHeight * sizeof(int));
     cudaMalloc(&yMatchDev, perspHeight * sizeof(int));
 
     for(int i = 0; i < rgcArrayHeight; i+=1){
         midgetPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+        parasolPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+        konioPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&midgetLeftHost[i], xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&midgetRightHost[i], xWidthsHost[i] * sizeof(float));
     }
 
+    for(int i = 0; i < rgcArrayHeight; i+=1){
+        cudaMalloc((void **)&parasolLeftHost[i], xWidthsHost[i] * sizeof(float));
+        cudaMalloc((void **)&parasolRightHost[i], xWidthsHost[i] * sizeof(float));
+    }
+
+    for(int i = 0; i < rgcArrayHeight; i+=1){
+        cudaMalloc((void **)&konioLeftHost[i], xWidthsHost[i] * sizeof(float));
+        cudaMalloc((void **)&konioRightHost[i], xWidthsHost[i] * sizeof(float));
+    }
+
     cudaMemcpy(midgetLeftDev, midgetLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     cudaMemcpy(midgetRightDev, midgetRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    cudaMemcpy(parasolLeftDev, parasolLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    cudaMemcpy(parasolRightDev, parasolRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    cudaMemcpy(konioLeftDev, konioLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    cudaMemcpy(konioRightDev, konioRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     // -------------------------------------------------------------------
 
 
@@ -1110,7 +1138,7 @@ RGCdev visualPass1 (){
     cudaDeviceSynchronize();
 
     // Forms RGC inputs
-    formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight, midgetLeftDev, midgetRightDev, xWidthsDev, yMatchDev);
+    formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight, midgetLeftDev, midgetRightDev, parasolLeftDev, parasolRightDev, konioLeftDev, konioRightDev, xWidthsDev, yMatchDev);
     cudaDeviceSynchronize();
 
     cudaSetDevice(0);
@@ -1136,7 +1164,7 @@ RGCdev visualPass1 (){
 
         for(int j = 0; j < xWidthsHost[p]; j+=1){
             if(midgetPin[p][j] != j){
-                cout << "Error at : " << p << " Index of Error is : " << j << endl;
+                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << midgetPin[p][j] << endl;
             }
         }
 //        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
