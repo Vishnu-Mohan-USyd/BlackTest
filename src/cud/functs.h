@@ -6,7 +6,7 @@
 #ifndef TEST1_FUNCTS_H
 #define TEST1_FUNCTS_H
 typedef struct {
-    float ** magno, **parvo, **konio;
+    float **magno, **midget, **konio;
 } RGCdev;
 
 typedef struct {
