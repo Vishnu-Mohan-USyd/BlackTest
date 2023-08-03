@@ -10,6 +10,13 @@ typedef struct {
 } RGCdev;
 
 typedef struct {
+    int type;
+    int zone;
+    int rFside;
+    int rFweights[250];
+} RGC;
+
+typedef struct {
     double x,y,z;
 } XYZ;
 
@@ -56,6 +63,19 @@ typedef struct {
 #define XTILT 0
 #define YROLL 1
 #define ZPAN  2
+
+// RGC Types
+#define MIDGET 10
+#define PARASOL 11
+#define SBC  12
+
+// Eye Sections
+#define FOV 20
+#define PARA 21
+#define PERI  22
+#define OZ1 23
+#define OZ2 24
+#define OZ3  25
 
 #define ABS(x) (x < 0 ? -(x) : (x))
 #define MIN(x,y) (x < y ? x : y)
