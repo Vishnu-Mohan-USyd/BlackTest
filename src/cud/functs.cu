@@ -237,7 +237,7 @@ void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRigh
      * Total rgcLeft collection count - 777,526 RGCs
      * */
 
-    // midgetRightDevice[6][3] = 2;
+    midgetRightDevice[6][3] = 2;
     int fovY = (rgcparams.perspHeight / 2) - 1;
     int fovX = (rgcparams.perspWidth / 2) - 1;
     int currY = i/rgcparams.perspWidth;
@@ -909,6 +909,7 @@ RGCdev visualPass1 (){
     rgcArrayHeight += 1;
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
+    RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*));
     float **midgetLeftHost, **midgetRightHost, **midgetLeftDev, **midgetRightDev, **midgetPin,
             **parasolLeftHost, **parasolRightHost, **parasolLeftDev, **parasolRightDev, **parasolPin,
             **konioLeftHost, **konioRightHost, **konioLeftDev, **konioRightDev, **konioPin;
