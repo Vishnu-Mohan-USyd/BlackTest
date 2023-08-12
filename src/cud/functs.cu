@@ -206,7 +206,7 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** midgetLeftDevice, float** midgetRightDevice, float** parasolLeftDevice, float** parasolRightDevice, float** konioLeftDevice, float** konioRightDevice, int* xWidths, int* yMatch)
+void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** midgetLeftDevice, float** midgetRightDevice, float** parasolLeftDevice, float** parasolRightDevice, float** konioLeftDevice, float** konioRightDevice, int* xWidths, int* yMatch, RGC** RGCdet)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -273,6 +273,12 @@ void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRigh
                (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
                (currX - (fovX - (fovWidthMidPre)));
 
+        RGCdet[yMatch[currY]][rgcX].type = MIDGET;
+        if(rgcX % 10 == 0) {
+            RGCdet[yMatch[currY]][rgcX].type = PARASOL;
+            RGCdet[yMatch[currY]][rgcX].cenRfSide = 1;
+            RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
+        }
         midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
 
     }
@@ -909,7 +915,7 @@ RGCdev visualPass1 (){
     rgcArrayHeight += 1;
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
-    RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*));
+    RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev;
     float **midgetLeftHost, **midgetRightHost, **midgetLeftDev, **midgetRightDev, **midgetPin,
             **parasolLeftHost, **parasolRightHost, **parasolLeftDev, **parasolRightDev, **parasolPin,
             **konioLeftHost, **konioRightHost, **konioLeftDev, **konioRightDev, **konioPin;
@@ -922,6 +928,7 @@ RGCdev visualPass1 (){
     midgetPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
     parasolPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
     konioPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&RGCDetsDev, rgcArrayHeight * sizeof(RGC*));
     cudaMalloc(&midgetLeftDev, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&midgetRightDev, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&parasolLeftDev, rgcArrayHeight * sizeof(float*));
@@ -932,6 +939,8 @@ RGCdev visualPass1 (){
     cudaMalloc(&yMatchDev, perspHeight * sizeof(int));
 
     for(int i = 0; i < rgcArrayHeight; i+=1){
+        cudaMalloc((void**) &RGCdets[i], ((xWidthsHost[i]*sizeof(RGC))));
+        RGCdetsPin[i] = (RGC*) malloc(xWidthsHost[i] * sizeof(RGC));
         midgetPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         parasolPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         konioPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
@@ -949,6 +958,7 @@ RGCdev visualPass1 (){
         cudaMalloc((void **)&konioRightHost[i], xWidthsHost[i] * sizeof(float));
     }
 
+    cudaMemcpy(RGCDetsDev,RGCdets,rgcArrayHeight * sizeof(RGC*),cudaMemcpyHostToDevice);
     cudaMemcpy(midgetLeftDev, midgetLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     cudaMemcpy(midgetRightDev, midgetRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     cudaMemcpy(parasolLeftDev, parasolLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
@@ -1132,7 +1142,7 @@ RGCdev visualPass1 (){
     cudaDeviceSynchronize();
 
     // Forms RGC inputs
-    formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight, midgetLeftDev, midgetRightDev, parasolLeftDev, parasolRightDev, konioLeftDev, konioRightDev, xWidthsDev, yMatchDev);
+    formRGCinputs<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight, midgetLeftDev, midgetRightDev, parasolLeftDev, parasolRightDev, konioLeftDev, konioRightDev, xWidthsDev, yMatchDev, RGCDetsDev);
     cudaDeviceSynchronize();
 
     cudaSetDevice(0);
