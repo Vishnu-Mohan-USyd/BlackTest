@@ -11,8 +11,10 @@ typedef struct {
 
 typedef struct {
     int type;
+    int detType;
     int zone;
-    int rFside;
+    int surRfSide;
+    int cenRfSide;
     int rFweights[250];
 } RGC;
 
@@ -76,6 +78,10 @@ typedef struct {
 #define OZ1 23
 #define OZ2 24
 #define OZ3  25
+
+// RGC Detection types
+#define LUM 30
+#define COLOR 31
 
 #define ABS(x) (x < 0 ? -(x) : (x))
 #define MIN(x,y) (x < y ? x : y)
