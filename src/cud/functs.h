@@ -13,7 +13,7 @@ typedef struct {
     int type;
     int detType;
     int zone;
-    int surRfSide;
+    int surRfWidth;
     int cenRfSide;
     int rFweights[250];
 } RGC;
