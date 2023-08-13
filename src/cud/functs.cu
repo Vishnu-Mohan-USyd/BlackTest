@@ -274,11 +274,18 @@ void formRGCinputs(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRigh
                (currX - (fovX - (fovWidthMidPre)));
 
         RGCdet[yMatch[currY]][rgcX].type = MIDGET;
+        RGCdet[yMatch[currY]][rgcX].detType = LUM;
+        RGCdet[yMatch[currY]][rgcX].cenRfSide = 2;
+        RGCdet[yMatch[currY]][rgcX].surRfWidth = 2;
+        if(rgcX % 4 == 0) {
+            RGCdet[yMatch[currY]][rgcX].detType = COLOR;
+        }
         if(rgcX % 10 == 0) {
             RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 1;
             RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
+            RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
         }
+
         midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
 
     }
