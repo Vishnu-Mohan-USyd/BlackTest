@@ -285,7 +285,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
             if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
         }
-        if(rgcX % 20 == 0) {
+        if(rgcX % 20 == 0 && yMatch[currY] % 2 == 0) {
+            RGCdet[yMatch[currY]][rgcX].type = PARASOL;
+            RGCdet[yMatch[currY]][rgcX].detType = LUM;
+            RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
+            RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
+        }
+        if((rgcX + 10) % 20 == 0 && yMatch[currY] % 2 == 1) {
             RGCdet[yMatch[currY]][rgcX].type = PARASOL;
             RGCdet[yMatch[currY]][rgcX].detType = LUM;
             RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
@@ -387,7 +393,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
                 if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
             }
-            if(rgcX % 10 == 0) {
+            if(rgcX % 10 == 0 && yMatch[currY] % 2 == 0) {
+                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
+                RGCdet[yMatch[currY]][rgcX].detType = LUM;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
+            }
+            if((rgcX + 5) % 10 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
@@ -490,7 +502,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
                 if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
             }
-            if(rgcX % 8 == 0) {
+            if(rgcX % 8 == 0 && yMatch[currY] % 2 == 0) {
+                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
+                RGCdet[yMatch[currY]][rgcX].detType = LUM;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 6;
+            }
+            if((rgcX + 4) % 8 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
@@ -586,7 +604,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
                 if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
             }
-            if(rgcX % 6 == 0) {
+            if(rgcX % 6 == 0 && yMatch[currY] % 2 == 0) {
+                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
+                RGCdet[yMatch[currY]][rgcX].detType = LUM;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 10;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 12;
+            }
+            if((rgcX + 3) % 6 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 10;
@@ -710,7 +734,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
                 if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
             }
-            if(rgcX % 5 == 0) {
+            if(rgcX % 5 == 0 && yMatch[currY] % 2 == 0) {
+                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
+                RGCdet[yMatch[currY]][rgcX].detType = LUM;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
+            }
+            if((rgcX + 2) % 5 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
@@ -851,11 +881,17 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
                 if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
             }
-            if(rgcX % 4 == 0) {
+            if(rgcX % 4 == 0 && yMatch[currY] % 2 == 0) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 72;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 72;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 48;
+            }
+            if((rgcX + 2) % 4 == 0 && yMatch[currY] % 2 == 1) {
+                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
+                RGCdet[yMatch[currY]][rgcX].detType = LUM;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 48;
             }
 
             midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
