@@ -12,6 +12,7 @@ typedef struct {
 typedef struct {
     int type;
     int detType;
+    int colID;
     int zone;
     int surRfWidth;
     int cenRfSide;
@@ -83,6 +84,12 @@ typedef struct {
 #define LUM 30
 #define COLOR 31
 
+// RGC neuron colours
+#define R_rgc 40
+#define G_rgc 41
+#define B_rgc 42
+#define Y_rgc 43
+
 #define ABS(x) (x < 0 ? -(x) : (x))
 #define MIN(x,y) (x < y ? x : y)
 #define MAX(x,y) (x > y ? x : y)
@@ -96,6 +103,6 @@ RGCdev visualPass1();
 int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
 void saxpy();
-void formRGCinputs();
+void initRGCdets();
 void eye1Pipeline();
 #endif //TEST1_FUNCTS_H
