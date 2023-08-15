@@ -17,6 +17,7 @@ typedef struct {
     int surRfWidth;
     int cenRfSide;
     int rFweights[250];
+    int perspX, perspY;
 } RGC;
 
 typedef struct {
@@ -24,7 +25,7 @@ typedef struct {
 } XYZ;
 
 typedef struct {
-    int foveaWidth, paraLength, periLength, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, perspHeight, perspWidth;
+    int foveaWidth, paraLength, periLength, oz1up, oz1side, oz2up, oz2side, oz3up, oz3side, perspHeight, perspWidth, rgcArrLen;
     int *divFactors;
 } RGCPARAMS;
 
