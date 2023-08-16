@@ -993,17 +993,17 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenIndex = (RGCdet[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet[posY][posX].perspX * 4);
 
     for (int y = 1; y < (surrSide) + 1; y+=1){
-//        if ((((RGCdet[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet[posY][posX].perspY)) ||
-//             ((((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)) < midY) && (y > midY) &&
-//              ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)))))) {
-//            continue;
-//        }
+        if ((((RGCdet[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet[posY][posX].perspY)) ||
+             ((((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)) < midY) && (y > midY) &&
+              ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)))))) {
+            continue;
+        }
         for(int x = 1; x < (surrSide) + 1; x += 1){
-//            if ((((RGCdet[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet[posY][posX].perspX)) ||
-//            ((((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)) < midX) && (x > midX) &&
-//            ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)))))) {
-//                continue;
-//            }
+            if ((((RGCdet[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet[posY][posX].perspX)) ||
+            ((((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)) < midX) && (x > midX) &&
+            ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)))))) {
+                continue;
+            }
             currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
             xComp = 0; yComp = 0;
             // --------------------------- Surround Region -------------------------------
@@ -1057,7 +1057,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
                     yComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - y);
                 }
                 if (RGCdet[posY][posX].detType == LUM){
-                    if(i == 0 ) testr+=1;
+                    testr+=1;
                     cenSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenIdeal += (float)(xComp + yComp) * 255;
@@ -1095,7 +1095,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenValL = cenSumL / cenIdeal;
     cenValR = cenSumR / cenIdeal;
 
-    leftInputs[posY][posX] = posX;
+    leftInputs[posY][posX] = testr;
     // rightInputs[posY][posX] = posX;
 
 }
