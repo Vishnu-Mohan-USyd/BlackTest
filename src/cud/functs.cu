@@ -939,13 +939,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             if(rgcX % 4 == 0 && yMatch[currY] % 2 == 0) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 37;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
                 RGCdet[yMatch[currY]][rgcX].surRfWidth = 48;
             }
             if((rgcX + 2) % 4 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 37;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
                 RGCdet[yMatch[currY]][rgcX].surRfWidth = 48;
             }
 
@@ -1000,8 +1000,8 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
         }
         for(int x = 1; x < (surrSide) + 1; x += 1){
             if ((((RGCdet[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet[posY][posX].perspX)) ||
-            ((((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)) < midX) && (x > midX) &&
-            ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)))))) {
+                 ((((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)) < midX) && (x > midX) &&
+                  ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)))))) {
                 continue;
             }
             currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
@@ -1057,7 +1057,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
                     yComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - y);
                 }
                 if (RGCdet[posY][posX].detType == LUM){
-                    testr+=1;
+                    if((currIndex) == 0)testr+=1;
                     cenSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenIdeal += (float)(xComp + yComp) * 255;
@@ -1519,7 +1519,7 @@ RGCdev visualPass1 (){
 //        }
         cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
         for(int j = 0; j < xWidthsHost[p]; j+=1){
-            if(RGCdetsPin[p][j].detType == LUM){
+            if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
                 printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
                 cout << " - ";
             } else {
