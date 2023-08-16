@@ -978,8 +978,8 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
         }
     }
 
-    float surrSum = 0, cenSum = 0, surrIdeal = 0, cenIdeal = 0, xComp, yComp;
-    int midX, midY, surrSide = (RGCdet[posY][posX].cenRfSide + (2 * RGCdet[posY][posX].surRfWidth));
+    float surrSumL = 0, surrSumR = 0, cenSumL = 0, cenSumR = 0, surrIdeal = 0, cenIdeal = 0, xComp, yComp;
+    int midX, midY, surrSide = (RGCdet[posY][posX].cenRfSide + (2 * RGCdet[posY][posX].surRfWidth)), currIndex, cenIndex;
     if(surrSide % 2 == 0) {
         midX = surrSide / 2;
         midY = midX;
@@ -989,37 +989,49 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
         midY = midX;
     }
 
+    cenIndex = (RGCdet[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet[posY][posX].perspX * 4);
+
     for (int y = 1; y < (surrSide * surrSide) + 1; y+=1){
         for(int x = 1; x < (surrSide * surrSide) + 1; x += 1){
-
+            currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
             xComp = 0; yComp = 0;
             // Surround area
             if((x <= (RGCdet[posY][posX].surRfWidth)) || (x > (surrSide - RGCdet[posY][posX].surRfWidth)) ||
                (y <= (RGCdet[posY][posX].surRfWidth)) || (y > (surrSide - RGCdet[posY][posX].surRfWidth))){
-                if(RGCdet[posY][posX].cenRfSide % 2 == 0){
-                    xComp = (float)x;
-                    yComp = (float)y;
-                    if(x > midX){
-                        xComp = (x - (midX + 1));
-                    }
-                    if(y > midY){
-                        yComp = (y - (midY + 1));
-                    }
-                } else {
-                    xComp = (float)x;
-                    yComp = (float)y;
-                    if(x > midX){
-                        xComp = (x - midX);
-                    }
-                    if(y > midY){
-                        yComp = (y - midY);
-                    }
+                xComp = (float)x;
+                yComp = (float)y;
+                if(x > midX){
+                    xComp = (float)(surrSide - x);
+                }
+                if(y > midY){
+                    yComp = (float)(surrSide - y);
                 }
                 if (RGCdet[posY][posX].detType = LUM){
-                    surrSum += (float)(xComp + yComp) * 0.5;
+                    surrSumL += (float)(xComp + yComp) * 0.5;
+                    surrSumR += (float)(xComp + yComp) * 0.5;
                     surrIdeal += (float)(xComp + yComp) * 1;
                 } else if (RGCdet[posY][posX].detType = COLOR){
-                    // Color segregation
+                    if(RGCdet[posY][posX].colID == R_rgc){
+                        // Surround is -M                     // M
+                        surrSumL += ((xComp + yComp) * (float)perspLeft[currIndex + 1]);
+                        surrSumR += ((xComp + yComp) * (float)perspRight[currIndex + 1]);
+                        surrIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet[posY][posX].colID == G_rgc){
+                        // Surround is -(S + L)                                                 // S                              // L
+                        surrSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex]));
+                        surrSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex]));
+                        surrIdeal += (xComp + yComp) * 255;
+                    } else if(RGCdet[posY][posX].colID == B_rgc){
+                        // Surround is -L                     // L
+                        surrSumL += ((xComp + yComp) * (float)perspLeft[currIndex]);
+                        surrSumR += ((xComp + yComp) * (float)perspRight[currIndex]);
+                        surrIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet[posY][posX].colID == Y_rgc){
+                        // Surround is -(S + M)                                                 // S                              // M
+                        surrSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex + 1]));
+                        surrSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex + 1]));
+                        surrIdeal += (xComp + yComp) * 255;
+                    }
                 }
             } else {
 
