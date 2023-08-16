@@ -1057,7 +1057,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
                     yComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - y);
                 }
                 if (RGCdet[posY][posX].detType == LUM){
-                    if((currIndex) == 0)testr+=1;
+                    testr+=1;
                     cenSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenIdeal += (float)(xComp + yComp) * 255;
