@@ -296,13 +296,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             RGCdet[yMatch[currY]][rgcX].type = PARASOL;
             RGCdet[yMatch[currY]][rgcX].detType = LUM;
             RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
+            RGCdet[yMatch[currY]][rgcX].surRfWidth = 4;
         }
         if((rgcX + 10) % 20 == 0 && yMatch[currY] % 2 == 1) {
             RGCdet[yMatch[currY]][rgcX].type = PARASOL;
             RGCdet[yMatch[currY]][rgcX].detType = LUM;
             RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
+            RGCdet[yMatch[currY]][rgcX].surRfWidth = 4;
         }
 
         RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -414,13 +414,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 5;
             }
             if((rgcX + 5) % 10 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 5;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -532,13 +532,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 6;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 6;
             }
             if((rgcX + 4) % 8 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 6;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 6;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -644,13 +644,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 10;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 12;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 12;
             }
             if((rgcX + 3) % 6 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 10;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 12;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 12;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -783,13 +783,13 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 24;
             }
             if((rgcX + 2) % 5 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
                 RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 24;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -939,14 +939,14 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             if(rgcX % 4 == 0 && yMatch[currY] % 2 == 0) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 48;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 37;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 48;
             }
             if((rgcX + 2) % 4 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 48;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 37;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 48;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -980,7 +980,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
 
     float surrSumL = 0, surrSumR = 0, cenSumL = 0, cenSumR = 0, surrIdeal = 0, cenIdeal = 0, surrValL = 0, cenValL = 0,
     surrValR = 0, cenValR = 0, xComp, yComp;
-    int midX, midY, surrSide = (RGCdet[posY][posX].cenRfSide + (2 * RGCdet[posY][posX].surRfWidth)), currIndex, cenIndex;
+    int midX, midY, surrSide = (RGCdet[posY][posX].cenRfSide + (2 * RGCdet[posY][posX].surRfWidth)), currIndex, cenIndex, testr = 0;
     if(surrSide % 2 == 0) {
         midX = surrSide / 2;
         midY = midX;
@@ -993,8 +993,17 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenIndex = (RGCdet[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet[posY][posX].perspX * 4);
 
     for (int y = 1; y < (surrSide) + 1; y+=1){
-        // if (RGCdet[posY][posX].perspY > )
+//        if ((((RGCdet[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet[posY][posX].perspY)) ||
+//             ((((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)) < midY) && (y > midY) &&
+//              ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)))))) {
+//            continue;
+//        }
         for(int x = 1; x < (surrSide) + 1; x += 1){
+//            if ((((RGCdet[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet[posY][posX].perspX)) ||
+//            ((((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)) < midX) && (x > midX) &&
+//            ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)))))) {
+//                continue;
+//            }
             currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
             xComp = 0; yComp = 0;
             // --------------------------- Surround Region -------------------------------
@@ -1048,9 +1057,10 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
                     yComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - y);
                 }
                 if (RGCdet[posY][posX].detType == LUM){
-                    cenSumL += (float)(xComp + yComp) * 0.5;
-                    cenSumR += (float)(xComp + yComp) * 0.5;
-                    cenIdeal += (float)(xComp + yComp) * 1;
+                    if(i == 0 ) testr+=1;
+                    cenSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
+                    cenSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
+                    cenIdeal += (float)(xComp + yComp) * 255;
                 } else if (RGCdet[posY][posX].detType == COLOR){
                     if(RGCdet[posY][posX].colID == R_rgc){
                         // Center is (S+L)                                                     // S                              // L
