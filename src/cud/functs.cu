@@ -206,7 +206,7 @@ void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
 
 
 __global__
-void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** midgetLeftDevice, float** midgetRightDevice, float** parasolLeftDevice, float** parasolRightDevice, float** konioLeftDevice, float** konioRightDevice, int* xWidths, int* yMatch, RGC** RGCdet)
+void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** rgcInputsLeft, float** rgcInputsRight, int* xWidths, int* yMatch, RGC** RGCdet)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -237,7 +237,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
      * Total rgcLeft collection count - 777,526 RGCs
      * */
 
-    midgetRightDevice[6][3] = 2;
+    rgcInputsRight[6][3] = 2;
     int fovY = (rgcparams.perspHeight / 2) - 1;
     int fovX = (rgcparams.perspWidth / 2) - 1;
     int currY = i/rgcparams.perspWidth;
@@ -308,7 +308,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
         RGCdet[yMatch[currY]][rgcX].perspX = currX;
         RGCdet[yMatch[currY]][rgcX].perspY = currY;
 
-        midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
+        rgcInputsLeft[yMatch[currY]][rgcX] = rgcX;
 
     }
 
@@ -425,7 +425,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
-            midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
+            rgcInputsLeft[yMatch[currY]][rgcX] = rgcX;
         }
     }
     // ---------------------------------- X -----------------------------------
@@ -544,7 +544,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
 
-            midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
+            rgcInputsLeft[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -656,7 +656,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
 
-            midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
+            rgcInputsLeft[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -795,7 +795,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
 
-            midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
+            rgcInputsLeft[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -904,7 +904,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
 
                            (rgcparams.foveaWidth * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)))) ? 1 : 0)) +
                            (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + 1))) / rgcparams.divFactors[5]));
-                    // if(currY == 350 && currX == 3080) midgetLeftDevice[0][0] = rgcX;
+                    // if(currY == 350 && currX == 3080) rgcInputsLeft[0][0] = rgcX;
                 }
 
             }
@@ -952,7 +952,7 @@ void initRGCdets(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight,
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
 
-            midgetLeftDevice[yMatch[currY]][rgcX] = rgcX;
+            rgcInputsLeft[yMatch[currY]][rgcX] = rgcX;
         }
     }
 
@@ -972,13 +972,14 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     for(int j = 0; j < rgcparams.rgcArrLen; j+=1){
         tempCumWidth += xWidths[j];
         if(i < tempCumWidth){
-            posX = j;
-            posY = i - (tempCumWidth - xWidths[j]);
+            posY = j;
+            posX = i - (tempCumWidth - xWidths[j]);
             break;
         }
     }
 
-    float surrSumL = 0, surrSumR = 0, cenSumL = 0, cenSumR = 0, surrIdeal = 0, cenIdeal = 0, xComp, yComp;
+    float surrSumL = 0, surrSumR = 0, cenSumL = 0, cenSumR = 0, surrIdeal = 0, cenIdeal = 0, surrValL = 0, cenValL = 0,
+    surrValR = 0, cenValR = 0, xComp, yComp;
     int midX, midY, surrSide = (RGCdet[posY][posX].cenRfSide + (2 * RGCdet[posY][posX].surRfWidth)), currIndex, cenIndex;
     if(surrSide % 2 == 0) {
         midX = surrSide / 2;
@@ -991,26 +992,27 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
 
     cenIndex = (RGCdet[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet[posY][posX].perspX * 4);
 
-    for (int y = 1; y < (surrSide * surrSide) + 1; y+=1){
-        for(int x = 1; x < (surrSide * surrSide) + 1; x += 1){
+    for (int y = 1; y < (surrSide) + 1; y+=1){
+        // if (RGCdet[posY][posX].perspY > )
+        for(int x = 1; x < (surrSide) + 1; x += 1){
             currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
             xComp = 0; yComp = 0;
-            // Surround area
+            // --------------------------- Surround Region -------------------------------
             if((x <= (RGCdet[posY][posX].surRfWidth)) || (x > (surrSide - RGCdet[posY][posX].surRfWidth)) ||
                (y <= (RGCdet[posY][posX].surRfWidth)) || (y > (surrSide - RGCdet[posY][posX].surRfWidth))){
                 xComp = (float)x;
                 yComp = (float)y;
                 if(x > midX){
-                    xComp = (float)(surrSide - x);
+                    xComp = (float)((surrSide + 1) - x);
                 }
                 if(y > midY){
-                    yComp = (float)(surrSide - y);
+                    yComp = (float)((surrSide + 1) - y);
                 }
-                if (RGCdet[posY][posX].detType = LUM){
+                if (RGCdet[posY][posX].detType == LUM){
                     surrSumL += (float)(xComp + yComp) * 0.5;
                     surrSumR += (float)(xComp + yComp) * 0.5;
                     surrIdeal += (float)(xComp + yComp) * 1;
-                } else if (RGCdet[posY][posX].detType = COLOR){
+                } else if (RGCdet[posY][posX].detType == COLOR){
                     if(RGCdet[posY][posX].colID == R_rgc){
                         // Surround is -M                     // M
                         surrSumL += ((xComp + yComp) * (float)perspLeft[currIndex + 1]);
@@ -1033,11 +1035,59 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
                         surrIdeal += (xComp + yComp) * 255;
                     }
                 }
-            } else {
-
             }
+            // ----------------------------- X -------------------------------
+            // --------------------------- Center Region -------------------------------
+            else {
+                xComp = (float)x - RGCdet[posY][posX].surRfWidth;
+                yComp = (float)y - RGCdet[posY][posX].surRfWidth;
+                if(x > midX){
+                    xComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - x);
+                }
+                if(y > midY){
+                    yComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - y);
+                }
+                if (RGCdet[posY][posX].detType == LUM){
+                    cenSumL += (float)(xComp + yComp) * 0.5;
+                    cenSumR += (float)(xComp + yComp) * 0.5;
+                    cenIdeal += (float)(xComp + yComp) * 1;
+                } else if (RGCdet[posY][posX].detType == COLOR){
+                    if(RGCdet[posY][posX].colID == R_rgc){
+                        // Center is (S+L)                                                     // S                              // L
+                        cenSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex]));
+                        cenSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex]));
+                        cenIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet[posY][posX].colID == G_rgc){
+                        // Center is M                       // M
+                        cenSumL += ((xComp + yComp) * (float)perspLeft[currIndex + 1]);
+                        cenSumR += ((xComp + yComp) * (float)perspRight[currIndex + 1]);
+                        cenIdeal += (xComp + yComp) * 255;
+                    } else if(RGCdet[posY][posX].colID == B_rgc){
+                        // Center is (S+M)                                                     // S                              // M
+                        cenSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex + 1]));
+                        cenSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex + 1]));
+                        cenIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet[posY][posX].colID == Y_rgc){
+                        // Center is L                       // L
+                        cenSumL += ((xComp + yComp) * (float)perspLeft[currIndex]);
+                        cenSumR += ((xComp + yComp) * (float)perspRight[currIndex]);
+                        cenIdeal += (xComp + yComp) * 255;
+                    }
+                }
+            }
+            // ----------------------------- X -------------------------------
         }
     }
+    // Calculating surround averages
+    surrValL = surrSumL / surrIdeal;
+    surrValR = surrSumR / surrIdeal;
+    // Calculating center averages
+    cenValL = cenSumL / cenIdeal;
+    cenValR = cenSumR / cenIdeal;
+
+    leftInputs[posY][posX] = posX;
+    // rightInputs[posY][posX] = posX;
+
 }
 
 __global__
@@ -1153,7 +1203,7 @@ RGCdev visualPass1 (){
     rgcparams.perspHeight = perspHeight;
     rgcparams.perspWidth = perspWidth;
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
-    int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1;
+    int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0;
     yMatchHost = (int *)malloc(perspHeight * sizeof(int));
     xWidthsHost = (int *)malloc(perspHeight * sizeof(int));
     //------------------------------------------------------------------
@@ -1192,6 +1242,7 @@ RGCdev visualPass1 (){
         if(tmpxSum != 0){
             rgcArrayHeight+=1;
             xWidthsHost[rgcArrayHeight] = tmpxSum;
+            RGCcount += tmpxSum;
         }
         yMatchHost[i] = rgcArrayHeight;
     }
@@ -1199,55 +1250,27 @@ RGCdev visualPass1 (){
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
     RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev;
-    float **midgetLeftHost, **midgetRightHost, **midgetLeftDev, **midgetRightDev, **midgetPin,
-            **parasolLeftHost, **parasolRightHost, **parasolLeftDev, **parasolRightDev, **parasolPin,
-            **konioLeftHost, **konioRightHost, **konioLeftDev, **konioRightDev, **konioPin;
-    midgetLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    midgetRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    parasolLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    parasolRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    konioLeftHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    konioRightHost = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    midgetPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    parasolPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    konioPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d, **rgcInputPin;
+    rgcInputsLeft_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    rgcInputsRight_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    rgcInputPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
     cudaMalloc(&RGCDetsDev, rgcArrayHeight * sizeof(RGC*));
-    cudaMalloc(&midgetLeftDev, rgcArrayHeight * sizeof(float*));
-    cudaMalloc(&midgetRightDev, rgcArrayHeight * sizeof(float*));
-    cudaMalloc(&parasolLeftDev, rgcArrayHeight * sizeof(float*));
-    cudaMalloc(&parasolRightDev, rgcArrayHeight * sizeof(float*));
-    cudaMalloc(&konioLeftDev, rgcArrayHeight * sizeof(float*));
-    cudaMalloc(&konioRightDev, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&rgcInputsLeft_d, rgcArrayHeight * sizeof(float*));
+    cudaMalloc(&rgcInputsRight_d, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&xWidthsDev, perspHeight * sizeof(int));
     cudaMalloc(&yMatchDev, perspHeight * sizeof(int));
 
     for(int i = 0; i < rgcArrayHeight; i+=1){
         cudaMalloc((void**) &RGCdets[i], ((xWidthsHost[i]*sizeof(RGC))));
         RGCdetsPin[i] = (RGC*) malloc(xWidthsHost[i] * sizeof(RGC));
-        midgetPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
-        parasolPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
-        konioPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
-        cudaMalloc((void **)&midgetLeftHost[i], xWidthsHost[i] * sizeof(float));
-        cudaMalloc((void **)&midgetRightHost[i], xWidthsHost[i] * sizeof(float));
-    }
-
-    for(int i = 0; i < rgcArrayHeight; i+=1){
-        cudaMalloc((void **)&parasolLeftHost[i], xWidthsHost[i] * sizeof(float));
-        cudaMalloc((void **)&parasolRightHost[i], xWidthsHost[i] * sizeof(float));
-    }
-
-    for(int i = 0; i < rgcArrayHeight; i+=1){
-        cudaMalloc((void **)&konioLeftHost[i], xWidthsHost[i] * sizeof(float));
-        cudaMalloc((void **)&konioRightHost[i], xWidthsHost[i] * sizeof(float));
+        rgcInputPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+        cudaMalloc((void **)&rgcInputsLeft_h[i], xWidthsHost[i] * sizeof(float));
+        cudaMalloc((void **)&rgcInputsRight_h[i], xWidthsHost[i] * sizeof(float));
     }
 
     cudaMemcpy(RGCDetsDev,RGCdets,rgcArrayHeight * sizeof(RGC*),cudaMemcpyHostToDevice);
-    cudaMemcpy(midgetLeftDev, midgetLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
-    cudaMemcpy(midgetRightDev, midgetRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
-    cudaMemcpy(parasolLeftDev, parasolLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
-    cudaMemcpy(parasolRightDev, parasolRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
-    cudaMemcpy(konioLeftDev, konioLeftHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
-    cudaMemcpy(konioRightDev, konioRightHost, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    cudaMemcpy(rgcInputsLeft_d, rgcInputsLeft_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+    cudaMemcpy(rgcInputsRight_d, rgcInputsRight_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     // -------------------------------------------------------------------
 
 
@@ -1425,11 +1448,15 @@ RGCdev visualPass1 (){
     world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum);
     cudaDeviceSynchronize();
 
-    // Forms RGC inputs
+    // Initializes RGC details array (RGCDetsDev)
     initRGCdets<<<((perspHeight * perspWidth) + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight,
-                                                                                      midgetLeftDev, midgetRightDev,
-                                                                                      parasolLeftDev, parasolRightDev,
-                                                                                      konioLeftDev, konioRightDev,
+                                                                                      rgcInputsLeft_d, rgcInputsRight_d,
+                                                                                      xWidthsDev, yMatchDev, RGCDetsDev);
+    cudaDeviceSynchronize();
+
+    // Forms RGC inputs
+    formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight,
+                                                                                      rgcInputsLeft_d, rgcInputsRight_d,
                                                                                       xWidthsDev, yMatchDev, RGCDetsDev);
     cudaDeviceSynchronize();
 
@@ -1449,43 +1476,51 @@ RGCdev visualPass1 (){
     // Transfer perspective frame back after computation - not necessary
     cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
+
+
     // Transfers RGC details array back after initialisation
     cudaMemcpy(RGCdets, RGCDetsDev, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
     for(int p = 0; p < rgcArrayHeight; p+=1){
         cudaMemcpy(RGCdetsPin[p], RGCdets[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
+//        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+//        for(int j = 0; j < xWidthsHost[p]; j+=1){
+//            if(RGCdetsPin[p][j].detType == LUM) cout << ".";
+//            else {
+//                if (RGCdetsPin[p][j].colID == R_rgc) printf("\033[1;31m.\033[0m");
+//                if (RGCdetsPin[p][j].colID == G_rgc) printf("\033[1;32m.\033[0m");
+//                if (RGCdetsPin[p][j].colID == B_rgc) printf("\033[1;34m.\033[0m");
+//                if (RGCdetsPin[p][j].colID == Y_rgc) printf("\033[1;33m.\033[0m");
+//            }
+//
+//            cout << " ";
+//        }
+//        cout << endl;
+    }
+
+    // Transfers RGC inputs back - required if doing neural computation on another GPU
+    cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+    for(int p = 0; p < 10; p+=1){
+        cudaMemcpy(rgcInputPin[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+
+//        for(int j = 0; j < xWidthsHost[p]; j+=1){
+//            if(rgcInputPin[p][j] != j){
+//                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin[p][j] << endl;
+//            }
+//        }
         cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
         for(int j = 0; j < xWidthsHost[p]; j+=1){
-            if(RGCdetsPin[p][j].detType == LUM) cout << ".";
-            else {
-                if (RGCdetsPin[p][j].colID == R_rgc) printf("\033[1;31m.\033[0m");
-                if (RGCdetsPin[p][j].colID == G_rgc) printf("\033[1;32m.\033[0m");
-                if (RGCdetsPin[p][j].colID == B_rgc) printf("\033[1;34m.\033[0m");
-                if (RGCdetsPin[p][j].colID == Y_rgc) printf("\033[1;33m.\033[0m");
+            if(RGCdetsPin[p][j].detType == LUM){
+                printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
+                cout << " - ";
+            } else {
+                cout << rgcInputPin[p][j] << " - ";
             }
-
-            cout << " ";
         }
         cout << endl;
     }
 
-    // Transfers RGC inputs back - required if doing neural computation on another GPU
-//    cudaMemcpy(midgetLeftHost, midgetLeftDev, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-//    for(int p = 0; p < rgcArrayHeight; p+=1){
-//        cudaMemcpy(midgetPin[p], midgetLeftHost[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-//
-//        for(int j = 0; j < xWidthsHost[p]; j+=1){
-//            if(midgetPin[p][j] != j){
-//                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << midgetPin[p][j] << endl;
-//            }
-//        }
-////        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
-////        for(int j = 0; j < xWidthsHost[p]; j+=1){
-////            cout << midgetPin[p][j] << " - ";
-////        }
-////        cout << endl;
-//    }
+    cout << "RGC count : " << RGCcount << endl;
 
-    // cout << (int)hostTestr[5] << endl;
 
 
     glBindTexture(GL_TEXTURE_2D, tex_handle);
@@ -1506,7 +1541,7 @@ RGCdev visualPass1 (){
     glfwPollEvents();
     //::getchar();
 
-    rgcdev.midget = midgetLeftDev;
+    rgcdev.midget = rgcInputsLeft_d;
     return rgcdev;
     // cudaFree(Y_1);
 //    cudaFree(Y_1);
