@@ -20,7 +20,7 @@ int main(void)
 //    printf("\x1B[34mHeight : \033[0m");
     // vector<vector<float>> temp;
     // mrain(temp);
-    rgcSpikers();
+    visualPass1();
     // testFunct();
     return 0;
 }
