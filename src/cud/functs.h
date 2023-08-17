@@ -100,7 +100,7 @@ void CalcFrustum(void);
 XYZ CameraRay(double,double);
 XYZ VectorSum(double,XYZ,double,XYZ,double,XYZ,double,XYZ);
 
-RGCdev visualPass1();
+void visualPass1();
 int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
 void saxpy();
