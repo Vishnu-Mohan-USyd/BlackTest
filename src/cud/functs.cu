@@ -16,6 +16,7 @@
 #include <GLFW/glfw3.h>
 #include <cmath>
 #include <matplot/matplot.h>
+#include "rgc.cuh"
 
 using namespace matplot;
 using namespace std;
@@ -137,12 +138,12 @@ void createPerspTest(uint8_t  *perspTest, PARAMS deviceParams){
         perspTest[(i * 4)] = 255;
         perspTest[(i * 4) + 1] = 255;
         perspTest[(i * 4) + 2] = 255;
-        perspTest[(i * 4) + 2] = 255;
+        perspTest[(i * 4) + 3] = 255;
     } else {
         perspTest[(i * 4)] = 0;
         perspTest[(i * 4) + 1] = 0;
         perspTest[(i * 4) + 2] = 0;
-        perspTest[(i * 4) + 2] = 0;
+        perspTest[(i * 4) + 3] = 0;
     }
 }
 
@@ -1117,8 +1118,8 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenValL = cenSumL / cenIdeal;
     cenValR = cenSumR / cenIdeal;
 
-    leftInputs[posY][posX] = (((cenValL - surrValL) < 0) ? -0 : 1) * (cenValL - surrValL);
-    rightInputs[posY][posX] = (((cenValR - surrValR) < 0) ? -0 : 1) * (cenValR - surrValR);;
+    leftInputs[posY][posX] = RGCdet[posY][posX].perspX;
+    rightInputs[posY][posX] = (((cenValR - surrValR) < 0) ? -0 : 1) * (cenValR - surrValR);
 
 }
 
@@ -1132,7 +1133,7 @@ void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
 }
 
 
-RGCdev visualPass1 (){
+void visualPass1 (){
 
 
     // Video processing parameters
@@ -1536,7 +1537,7 @@ RGCdev visualPass1 (){
 
     // Transfers RGC inputs back - required if doing neural computation on another GPU
     cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-    for(int p = 0; p < 50; p+=1){
+    for(int p = 0; p < 100; p+=1){
         cudaMemcpy(rgcInputPin[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
 
 //        for(int j = 0; j < xWidthsHost[p]; j+=1){
@@ -1581,7 +1582,6 @@ RGCdev visualPass1 (){
     ::getchar();
 
     rgcdev.midget = rgcInputsLeft_d;
-    return rgcdev;
     // cudaFree(Y_1);
 //    cudaFree(Y_1);
 //    cudaFree(Y_2);
