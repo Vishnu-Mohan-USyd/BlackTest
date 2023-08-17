@@ -37,23 +37,8 @@ void saxpy(double *x, float ** da)
 
 }
 
-int rgcSpikers (){
-    double *x, *xTemp;
-    xTemp = (double*)malloc(10000 * sizeof(double));
-    cudaSetDevice(0);
-    cudaStream_t str1;
-    cudaStreamCreate (&str1);
-    cudaDeviceSynchronize();
-    cudaMalloc(&x, 10000 * sizeof(double));
-    cudaMallocHost((void**)&xTemp, 10000 * sizeof(double));
-    float **parvoLeftDev, **parvoRightDev, **parvoLeftHost, **parvoRightHost, **parvoPin,
-            **magnoLeftDev, **magnoRightDev, **magnoLeftHost, **magnoRightHost;
-    rets = visualPass1();
-    parvoPin = rets.midget;
-    saxpy<<<(10000 + 1023)/1024, 1024, 0, str1>>>(x, parvoPin);
-    cudaDeviceSynchronize();
-    cudaMemcpy(xTemp, x, 10000 * sizeof(double), cudaMemcpyDeviceToHost);
-    std::cout << xTemp[8]  << std::endl;
+int rgcSpikers (RGCdev rgcInputs, PARAMS rgcparams){
+
 }
 
 
