@@ -127,6 +127,26 @@ XYZ VectorSum(double d1,XYZ p1,double d2,XYZ p2,double d3,XYZ p3,double d4,XYZ p
 }
 
 __global__
+void createPerspTest(uint8_t  *perspTest, PARAMS deviceParams){
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int x = i % deviceParams.perspWidth;
+    int y = i / deviceParams.perspWidth;
+
+    if(x > 350 && x < 700){
+        perspTest[(i * 4)] = 255;
+        perspTest[(i * 4) + 1] = 255;
+        perspTest[(i * 4) + 2] = 255;
+        perspTest[(i * 4) + 2] = 255;
+    } else {
+        perspTest[(i * 4)] = 0;
+        perspTest[(i * 4) + 1] = 0;
+        perspTest[(i * 4) + 2] = 0;
+        perspTest[(i * 4) + 2] = 0;
+    }
+}
+
+__global__
 void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRight, uint8_t  *perspRight, PARAMS deviceParams, FRUSTUM deviceFrust)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1006,6 +1026,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
             }
             currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
             xComp = 0; yComp = 0;
+
             // --------------------------- Surround Region -------------------------------
             if((x <= (RGCdet[posY][posX].surRfWidth)) || (x > (surrSide - RGCdet[posY][posX].surRfWidth)) ||
                (y <= (RGCdet[posY][posX].surRfWidth)) || (y > (surrSide - RGCdet[posY][posX].surRfWidth))){
@@ -1018,9 +1039,10 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
                     yComp = (float)((surrSide + 1) - y);
                 }
                 if (RGCdet[posY][posX].detType == LUM){
-                    surrSumL += (float)(xComp + yComp) * 0.5;
-                    surrSumR += (float)(xComp + yComp) * 0.5;
-                    surrIdeal += (float)(xComp + yComp) * 1;
+                    testr+=1;
+                    surrSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
+                    surrSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
+                    surrIdeal += (float)(xComp + yComp) * 255;
                 } else if (RGCdet[posY][posX].detType == COLOR){
                     if(RGCdet[posY][posX].colID == R_rgc){
                         // Surround is -M                     // M
@@ -1057,7 +1079,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
                     yComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - y);
                 }
                 if (RGCdet[posY][posX].detType == LUM){
-                    testr+=1;
+
                     cenSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenIdeal += (float)(xComp + yComp) * 255;
@@ -1095,8 +1117,8 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenValL = cenSumL / cenIdeal;
     cenValR = cenSumR / cenIdeal;
 
-    leftInputs[posY][posX] = testr;
-    // rightInputs[posY][posX] = posX;
+    leftInputs[posY][posX] = (((cenValL - surrValL) < 0) ? -0 : 1) * (cenValL - surrValL);
+    rightInputs[posY][posX] = (((cenValR - surrValR) < 0) ? -0 : 1) * (cenValR - surrValR);;
 
 }
 
@@ -1353,7 +1375,7 @@ RGCdev visualPass1 (){
 
     ::uint8_t *worldLeft, *worldRight;
     ::uint8_t *currentFrameLeft, *currentFrameRight;
-    uint8_t *perspHost, *perspLeft, *perspRight, *persp1;
+    uint8_t *perspHost, *perspLeft, *perspRight, *persp1, *perspTest;
     TRANSFORM *devTrans;
     // CUDA variables for device 0
     cudaStream_t memStream1, memStream2, funcStream1, funcStream2 ;
@@ -1373,6 +1395,7 @@ RGCdev visualPass1 (){
     cudaMalloc(&worldRight, numOfPixels * 4 * sizeof(::uint8_t));
     cudaMalloc(&perspLeft, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&perspRight, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
+    cudaMalloc(&perspTest, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&devTrans, params.ntransform * sizeof(TRANSFORM));
     cudaMalloc(&retinaDivs, 6 * sizeof(int));
@@ -1454,6 +1477,10 @@ RGCdev visualPass1 (){
     cudaMemcpyAsync(worldRight, currentFrameRight, numOfPixels * 4 * sizeof(::uint8_t), cudaMemcpyHostToDevice, memStream2);
     cudaDeviceSynchronize();
 
+    // Creates test frame
+    createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, params);
+    cudaDeviceSynchronize();
+
     // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
     world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum);
     cudaDeviceSynchronize();
@@ -1465,7 +1492,7 @@ RGCdev visualPass1 (){
     cudaDeviceSynchronize();
 
     // Forms RGC inputs
-    formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight,
+    formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspRight,
                                                                                       rgcInputsLeft_d, rgcInputsRight_d,
                                                                                       xWidthsDev, yMatchDev, RGCDetsDev);
     cudaDeviceSynchronize();
@@ -1484,7 +1511,7 @@ RGCdev visualPass1 (){
     cudaSetDevice(0);
 
     // Transfer perspective frame back after computation - not necessary
-    cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+    cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
 
 
@@ -1509,7 +1536,7 @@ RGCdev visualPass1 (){
 
     // Transfers RGC inputs back - required if doing neural computation on another GPU
     cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-    for(int p = 0; p < 10; p+=1){
+    for(int p = 0; p < 50; p+=1){
         cudaMemcpy(rgcInputPin[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
 
 //        for(int j = 0; j < xWidthsHost[p]; j+=1){
@@ -1519,11 +1546,13 @@ RGCdev visualPass1 (){
 //        }
         cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
         for(int j = 0; j < xWidthsHost[p]; j+=1){
-            if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
-                printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
-                cout << " - ";
-            } else {
-                cout << rgcInputPin[p][j] << " - ";
+            if(true){
+                if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
+                    printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
+                    cout << " - ";
+                } else {
+                    cout << rgcInputPin[p][j] << " - ";
+                }
             }
         }
         cout << endl;
@@ -1549,7 +1578,7 @@ RGCdev visualPass1 (){
 
     glfwSwapBuffers(window);
     glfwPollEvents();
-    //::getchar();
+    ::getchar();
 
     rgcdev.midget = rgcInputsLeft_d;
     return rgcdev;
