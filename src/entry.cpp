@@ -7,20 +7,18 @@
 #include <vector>
 #include <limits>
 #include "src/vidStuff/vidReader.h"
+#include "./src/cud/functs.h"
+#include "./src/cud/mainseq.h"
 
 using namespace std;
 using namespace matplot;
 
+
+
+
 int main(void)
 {
-//    cout << endl << "Beginning data initiation..." << endl;
-//    printf("\x1B[93mProcessing Step : \033[0m\t\t");
-//    cout << "    Video Frame Processing" << endl;
-//    printf("\x1B[93mEye 1 Input Parameters : \033[0m\t");
-//    printf("\x1B[34mHeight : \033[0m");
-    // vector<vector<float>> temp;
-    // mrain(temp);
-    visualPass1();
+    visualEngine();
     // testFunct();
     return 0;
 }
