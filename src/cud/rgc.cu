@@ -22,7 +22,7 @@
 using namespace matplot;
 using namespace std;
 
-RGCdev  rets;
+RGCinitVals  rets;
 //
 // Created by kasm-user on 7/26/23.
 //
@@ -37,7 +37,7 @@ void saxpy(double *x, float ** da)
 
 }
 
-int rgcSpikers (RGCdev rgcInputs, PARAMS rgcparams){
+int rgcSpikers (RGCinitVals rgcInputs, PARAMS rgcparams){
 
 }
 
