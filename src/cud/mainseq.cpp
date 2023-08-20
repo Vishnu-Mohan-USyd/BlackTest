@@ -11,6 +11,7 @@
 #include <cmath>
 #include <matplot/matplot.h>
 #include "rgc.cuh"
+#include <queue>
 #include "mainseq.h"
 
 using namespace matplot;
@@ -20,6 +21,7 @@ RGCinitVals initSizes;
 void visualEngine(){
 
     float **rgcInputPin;
+    auto *rgcPins = new queue<float**>;
     initSizes = retrgcinits();
 
     rgcInputPin = (float**)malloc(initSizes.rgcArrayH * sizeof(float*));
@@ -27,6 +29,9 @@ void visualEngine(){
     for(int i = 0; i < initSizes.rgcArrayH; i+=1){
         rgcInputPin[i] = (float*)malloc(initSizes.xWidths[i] * sizeof(float));
     }
-    visualPass1(rgcInputPin, initSizes.xWidths, initSizes.rgcArrayH, initSizes.yMatches, initSizes.RGCcount);
+    rgcPins->push(rgcInputPin);
+    visualPass1(rgcPins, initSizes.xWidths, initSizes.rgcArrayH, initSizes.yMatches, initSizes.RGCcount);
+    // rgcPins->pop();
+    cout << rgcPins->front()[6][8] << endl;
 
 }
