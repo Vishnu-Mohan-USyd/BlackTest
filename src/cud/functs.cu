@@ -16,6 +16,7 @@
 #include <GLFW/glfw3.h>
 #include <cmath>
 #include <matplot/matplot.h>
+#include <queue>
 #include "rgc.cuh"
 
 using namespace matplot;
@@ -1108,7 +1109,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenValL = cenSumL / cenIdeal;
     cenValR = cenSumR / cenIdeal;
 
-    leftInputs[posY][posX] = (((cenValL - surrValL) < 0) ? -0 : 1) * (cenValL - surrValL);
+    leftInputs[posY][posX] = RGCdet[posY][posX].perspX;
     rightInputs[posY][posX] = (((cenValR - surrValR) < 0) ? -0 : 1) * (cenValR - surrValR);
 
 }
@@ -1228,7 +1229,7 @@ RGCinitVals retrgcinits (){
     return rgcinitvals;
 }
 
-void visualPass1 (float** rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int *yMatchHost, int RGCcount){
+void visualPass1 (queue<float**> *rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int *yMatchHost, int RGCcount){
 
 
     // Video processing parameters
@@ -1546,7 +1547,7 @@ void visualPass1 (float** rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int
     // Transfers RGC inputs back - required if doing neural computation on another GPU
     cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
     for(int p = 0; p < 100; p+=1){
-        cudaMemcpy(rgcInputPin[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(rgcInputPin->front()[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
 
 //        for(int j = 0; j < xWidthsHost[p]; j+=1){
 //            if(rgcInputPin[p][j] != j){
@@ -1557,10 +1558,10 @@ void visualPass1 (float** rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int
         for(int j = 0; j < xWidthsHost[p]; j+=1){
             if(true){
                 if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
-                    printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
+                    printf("\033[1;31m%f\033[0m", rgcInputPin->front()[p][j]);
                     cout << " - ";
                 } else {
-                    cout << rgcInputPin[p][j] << " - ";
+                    cout << rgcInputPin->front()[p][j] << " - ";
                 }
             }
         }
@@ -1568,6 +1569,7 @@ void visualPass1 (float** rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int
     }
 
     cout << "RGC count : " << RGCcount << endl;
+    // rgcInputPin->pop();
 
 
 
