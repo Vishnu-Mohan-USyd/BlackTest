@@ -2,7 +2,9 @@
 // Created by kasm-user on 1/20/23.
 //
 #include <vector>
+#include <queue>
 
+using namespace std;
 #ifndef TEST1_FUNCTS_H
 #define TEST1_FUNCTS_H
 typedef struct {
@@ -100,7 +102,7 @@ void CalcFrustum(void);
 XYZ CameraRay(double,double);
 XYZ VectorSum(double,XYZ,double,XYZ,double,XYZ,double,XYZ);
 
-void visualPass1(float** rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int *yMatchHost, int RGCcount);
+void visualPass1(queue<float**> *rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int *yMatchHost, int RGCcount);
 RGCinitVals retrgcinits ();
 int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
