@@ -6,8 +6,8 @@
 #ifndef TEST1_FUNCTS_H
 #define TEST1_FUNCTS_H
 typedef struct {
-    float **magno, **midget, **konio;
-} RGCdev;
+    int *xWidths, rgcArrayH, *yMatches, RGCcount;
+} RGCinitVals;
 
 typedef struct {
     int type;
@@ -100,10 +100,10 @@ void CalcFrustum(void);
 XYZ CameraRay(double,double);
 XYZ VectorSum(double,XYZ,double,XYZ,double,XYZ,double,XYZ);
 
-void visualPass1();
+void visualPass1(float** rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int *yMatchHost, int RGCcount);
+RGCinitVals retrgcinits ();
 int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
 void saxpy();
 void initRGCdets();
-void eye1Pipeline();
 #endif //TEST1_FUNCTS_H
