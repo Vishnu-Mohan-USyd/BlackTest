@@ -21,10 +21,10 @@
 using namespace matplot;
 using namespace std;
 
-PARAMS params;
+PARAMS vidparams;
 FRUSTUM frustum;
 RGCPARAMS rgcparams;
-RGCdev rgcdev;
+RGCinitVals rgcinitvals;
 
 __global__
 void saxpy(int n, float a, float *x, float *y)
@@ -45,8 +45,8 @@ void CalcFrustum(void)
     XYZ vu = {0,0,1};     // Up vector. z axis
     XYZ vr = {1,0,0};     // Right vector, x axis. CrossProduct(vd,vu);
 
-    dh = tan(params.perspfov * (M_PI / 180) / 2);                 // half frustum width
-    dv = params.perspHeight * dh / params.perspWidth;     // half frustum height
+    dh = tan(vidparams.perspfov * (M_PI / 180) / 2);                 // half frustum width
+    dv = vidparams.perspHeight * dh / vidparams.perspWidth;     // half frustum height
 
     // Corners of view frustum
     frustum.p1 = VectorSum(1.0,vp,1.0,vd,-dh,vr, dv,vu);
@@ -67,14 +67,14 @@ void CalcFrustum(void)
     //          \ |           --------+---> y
     //            +
     //
-    frustum.p1.x += dv * params.hoffset * vr.x;
-    frustum.p1.z += dv * params.voffset * vu.z;
-    frustum.p2.x += dv * params.hoffset * vr.x;
-    frustum.p2.z += dv * params.voffset * vu.z;
-    frustum.p3.x += dv * params.hoffset * vr.x;
-    frustum.p3.z += dv * params.voffset * vu.z;
-    frustum.p4.x += dv * params.hoffset * vr.x;
-    frustum.p4.z += dv * params.voffset * vu.z;
+    frustum.p1.x += dv * vidparams.hoffset * vr.x;
+    frustum.p1.z += dv * vidparams.voffset * vu.z;
+    frustum.p2.x += dv * vidparams.hoffset * vr.x;
+    frustum.p2.z += dv * vidparams.voffset * vu.z;
+    frustum.p3.x += dv * vidparams.hoffset * vr.x;
+    frustum.p3.z += dv * vidparams.voffset * vu.z;
+    frustum.p4.x += dv * vidparams.hoffset * vr.x;
+    frustum.p4.z += dv * vidparams.voffset * vu.z;
 }
 
 __device__
@@ -214,16 +214,6 @@ void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRi
     // perspLeft[i] = deviceParams->testr;
 
 }
-
-__global__
-void world2PerspTest(::uint8_t  *perspFrame, ::uint8_t  *persp1)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-    persp1[i] = perspFrame[i];
-
-}
-
 
 
 __global__
@@ -1118,24 +1108,13 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenValL = cenSumL / cenIdeal;
     cenValR = cenSumR / cenIdeal;
 
-    leftInputs[posY][posX] = RGCdet[posY][posX].perspX;
+    leftInputs[posY][posX] = (((cenValL - surrValL) < 0) ? -0 : 1) * (cenValL - surrValL);
     rightInputs[posY][posX] = (((cenValR - surrValR) < 0) ? -0 : 1) * (cenValR - surrValR);
 
 }
 
-__global__
-void eye1Pipeline(int foveaPoint, int pixelCount, ::uint8_t  *a, ::uint8_t *b)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(i < 1000) a[i] = 22.89;
-
-}
-
-
-void visualPass1 (){
-
-
+RGCinitVals retrgcinits (){
     // Video processing parameters
     VideoReaderState vr_stateLeft, vr_stateRight;
     if (!video_reader_open(&vr_stateLeft, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachLeft.mp4")) {
@@ -1154,45 +1133,6 @@ void visualPass1 (){
     const int perspHeight = 2160;
     const int perspWidth = 3840;
     int numOfPixels = frame_width * frame_height;
-    int *retinaDivs;
-
-    GLFWwindow* window;
-
-    if (!glfwInit()) {
-        printf("Couldn't init GLFW\n");
-    }
-
-    window = glfwCreateWindow(1280, 720, "Hello World", NULL, NULL);
-    if (!window) {
-        printf("Couldn't open window\n");
-    }
-
-    glfwMakeContextCurrent(window);
-
-    // Generate texture
-    GLuint tex_handle;
-    glGenTextures(1, &tex_handle);
-    glBindTexture(GL_TEXTURE_2D, tex_handle);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Set up orphographic projection
-    int window_width, window_height;
-    glfwGetFramebufferSize(window, &window_width, &window_height);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, window_width, window_height, 0, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-
-
-    // Defining perspective windows
 
     rgcparams.divFactors = (int*)malloc(6 * sizeof(int));
 
@@ -1281,12 +1221,81 @@ void visualPass1 (){
     }
     rgcArrayHeight += 1;
 
+    rgcinitvals.xWidths = xWidthsHost;
+    rgcinitvals.rgcArrayH = rgcArrayHeight;
+    rgcinitvals.yMatches = yMatchHost;
+    rgcinitvals.RGCcount = RGCcount;
+    return rgcinitvals;
+}
+
+void visualPass1 (float** rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int *yMatchHost, int RGCcount){
+
+
+    // Video processing parameters
+    VideoReaderState vr_stateLeft, vr_stateRight;
+    if (!video_reader_open(&vr_stateLeft, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachLeft.mp4")) {
+        cout << "ERROR!!" << endl;
+        cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
+    }
+    if (!video_reader_open(&vr_stateRight, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachRight.mp4")) {
+        cout << "ERROR!!" << endl;
+        cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
+    }
+
+    // Allocate frameLeft buffer
+    constexpr int ALIGNMENT = 128;
+    const int frame_width = vr_stateLeft.width;
+    const int frame_height = vr_stateLeft.height;
+    const int perspHeight = 2160;
+    const int perspWidth = 3840;
+    int numOfPixels = frame_width * frame_height;
+    int *retinaDivs;
+
+
+    GLFWwindow* window;
+
+    if (!glfwInit()) {
+        printf("Couldn't init GLFW\n");
+    }
+
+    window = glfwCreateWindow(1280, 720, "Hello World", NULL, NULL);
+    if (!window) {
+        printf("Couldn't open window\n");
+    }
+
+    glfwMakeContextCurrent(window);
+
+    // Generate texture
+    GLuint tex_handle;
+    glGenTextures(1, &tex_handle);
+    glBindTexture(GL_TEXTURE_2D, tex_handle);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up orphographic projection
+    int window_width, window_height;
+    glfwGetFramebufferSize(window, &window_width, &window_height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, window_width, window_height, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+
+
+    //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
+    int *yMatchDev, *xWidthsDev, tmpxSum;
+
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
     RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev;
-    float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d, **rgcInputPin;
+    float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d;
     rgcInputsLeft_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcInputsRight_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    rgcInputPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
     cudaMalloc(&RGCDetsDev, rgcArrayHeight * sizeof(RGC*));
     cudaMalloc(&rgcInputsLeft_d, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&rgcInputsRight_d, rgcArrayHeight * sizeof(float*));
@@ -1296,7 +1305,6 @@ void visualPass1 (){
     for(int i = 0; i < rgcArrayHeight; i+=1){
         cudaMalloc((void**) &RGCdets[i], ((xWidthsHost[i]*sizeof(RGC))));
         RGCdetsPin[i] = (RGC*) malloc(xWidthsHost[i] * sizeof(RGC));
-        rgcInputPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcInputsLeft_h[i], xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcInputsRight_h[i], xWidthsHost[i] * sizeof(float));
     }
@@ -1330,34 +1338,34 @@ void visualPass1 (){
     // -------------------------------------------------------------------
 
     // -------------------- Init - perspective parameter initialization -----------------------
-    params.perspWidth = perspWidth;
-    params.perspHeight = perspHeight;
-    params.worldWidth = frameLeft->width;
-    params.worldHeight = frameLeft->height;
-    params.hoffset = 0;            // Horizontal offaxis amount as percentage for shift lens
-    params.voffset = 0;
-    params.antialias = 2;          // Supersampling antialiasing;
-    params.antialias2 = 4;
-    params.latmin = -M_PI/2;       // Support for a inset of an equirectangular
-    params.latmax = M_PI/2;
-    params.longmin = -M_PI;
-    params.longmax = M_PI;
-    params.perspfov = 90;
-    params.transform = NULL;
-    params.ntransform = 0;
-    params.debug = false;
+    vidparams.perspWidth = perspWidth;
+    vidparams.perspHeight = perspHeight;
+    vidparams.worldWidth = frameLeft->width;
+    vidparams.worldHeight = frameLeft->height;
+    vidparams.hoffset = 0;            // Horizontal offaxis amount as percentage for shift lens
+    vidparams.voffset = 0;
+    vidparams.antialias = 2;          // Supersampling antialiasing;
+    vidparams.antialias2 = 4;
+    vidparams.latmin = -M_PI / 2;       // Support for a inset of an equirectangular
+    vidparams.latmax = M_PI / 2;
+    vidparams.longmin = -M_PI;
+    vidparams.longmax = M_PI;
+    vidparams.perspfov = 90;
+    vidparams.transform = NULL;
+    vidparams.ntransform = 0;
+    vidparams.debug = false;
 
     // --------------------------------------------------------
 
     //----------------- Sample transformation --------------------------
-    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
-                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
-    params.transform[params.ntransform].axis = ZPAN;
-    params.transform[params.ntransform].value = (M_PI / 180)*(-60);
-    params.ntransform++;
-    for (int j=0;j<params.ntransform;j++) {
-        params.transform[j].cvalue = cos(params.transform[j].value);
-        params.transform[j].svalue = sin(params.transform[j].value);
+    vidparams.transform = static_cast<TRANSFORM *>(realloc(vidparams.transform,
+                                                           (vidparams.ntransform + 1) * sizeof(TRANSFORM)));
+    vidparams.transform[vidparams.ntransform].axis = ZPAN;
+    vidparams.transform[vidparams.ntransform].value = (M_PI / 180) * (-60);
+    vidparams.ntransform++;
+    for (int j=0; j < vidparams.ntransform; j++) {
+        vidparams.transform[j].cvalue = cos(vidparams.transform[j].value);
+        vidparams.transform[j].svalue = sin(vidparams.transform[j].value);
     }
     //--------------------------------------------------------
 
@@ -1398,7 +1406,7 @@ void visualPass1 (){
     cudaMalloc(&perspRight, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&perspTest, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
     cudaMalloc(&persp1, (perspHeight * perspWidth) * 4 * sizeof(uint8_t));
-    cudaMalloc(&devTrans, params.ntransform * sizeof(TRANSFORM));
+    cudaMalloc(&devTrans, vidparams.ntransform * sizeof(TRANSFORM));
     cudaMalloc(&retinaDivs, 6 * sizeof(int));
     cudaSetDevice(1);
     cudaStreamCreate(&memStream2);
@@ -1459,7 +1467,7 @@ void visualPass1 (){
 
     // --------------- Initial prep ----------------------
     cudaSetDevice(0);
-    cudaMemcpy(devTrans, params.transform, params.ntransform * sizeof(TRANSFORM), cudaMemcpyHostToDevice);
+    cudaMemcpy(devTrans, vidparams.transform, vidparams.ntransform * sizeof(TRANSFORM), cudaMemcpyHostToDevice);
     cudaMemcpy(retinaDivs, rgcparams.divFactors, 6 * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(yMatchDev, yMatchHost, perspHeight * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(xWidthsDev, xWidthsHost, perspHeight * sizeof(int), cudaMemcpyHostToDevice);
@@ -1469,7 +1477,7 @@ void visualPass1 (){
     cudaDeviceSynchronize();
     rgcparams.divFactors = retinaDivs;
     rgcparams.rgcArrLen = rgcArrayHeight;
-    params.transform = devTrans;
+    vidparams.transform = devTrans;
 
     int frameStorageCountr = 0;
     // Starts clock
@@ -1479,11 +1487,11 @@ void visualPass1 (){
     cudaDeviceSynchronize();
 
     // Creates test frame
-    createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, params);
+    createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, vidparams);
     cudaDeviceSynchronize();
 
     // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
-    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum);
+    world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, vidparams, frustum);
     cudaDeviceSynchronize();
 
     // Initializes RGC details array (RGCDetsDev)
@@ -1579,9 +1587,7 @@ void visualPass1 (){
 
     glfwSwapBuffers(window);
     glfwPollEvents();
-    ::getchar();
-
-    rgcdev.midget = rgcInputsLeft_d;
+    // ::getchar();
     // cudaFree(Y_1);
 //    cudaFree(Y_1);
 //    cudaFree(Y_2);
