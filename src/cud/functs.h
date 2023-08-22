@@ -3,6 +3,9 @@
 //
 #include <vector>
 #include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
 
 using namespace std;
 #ifndef TEST1_FUNCTS_H
@@ -102,8 +105,7 @@ void CalcFrustum(void);
 XYZ CameraRay(double,double);
 XYZ VectorSum(double,XYZ,double,XYZ,double,XYZ,double,XYZ);
 
-void visualPass1(queue<float**> *rgcInputPin, int *xWidthsHost, int rgcArrayHeight, int *yMatchHost, int RGCcount);
-RGCinitVals retrgcinits ();
+void visualPass1(queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex &rgcMut, condition_variable &rgcCond);
 int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
 void saxpy();
