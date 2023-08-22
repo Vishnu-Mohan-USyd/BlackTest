@@ -18,6 +18,7 @@
 #include <matplot/matplot.h>
 #include "functs.h"
 #include "rgc.cuh"
+#include <mutex>
 
 using namespace matplot;
 using namespace std;
