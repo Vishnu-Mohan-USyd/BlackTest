@@ -1477,7 +1477,7 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         cudaDeviceSynchronize();
 
         // Creates test frame
-        createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, params);
+        if(toIgnore == 0) createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, params);
         cudaDeviceSynchronize();
 
         // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
@@ -1550,20 +1550,29 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
 //                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin[p][j] << endl;
 //            }
 //        }
-            cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
-            for(int j = 0; j < xWidthsHost[p]; j+=1){
-                if(true){
-                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
-                        printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
-                        cout << " - ";
-                    } else {
-                        cout << rgcInputPin[p][j] << " - ";
-                    }
-                }
-            }
-            cout << endl;
+// ---------------------------------- Print Block ---------------------------------
+//            cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+//            for(int j = 0; j < xWidthsHost[p]; j+=1){
+//                if(true){
+//                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
+//                        printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
+//                        cout << " - ";
+//                    } else {
+//                        cout << rgcInputPin[p][j] << " - ";
+//                    }
+//                }
+//            }
+//            cout << endl;
+// ------------------------------------------------------------------------------------
         }
-        rgcQueue_l->push(rgcInputPin);
+        {
+            lock_guard<mutex> lock(rgcMut);
+            rgcQueue_l->push(rgcInputPin);
+        }
+        cout << "Current Size : " << rgcQueue_l->size() << std::endl;
+        rgcCond.notify_all();
+
+
 
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
