@@ -13,25 +13,23 @@
 #include "rgc.cuh"
 #include <queue>
 #include "mainseq.h"
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 using namespace matplot;
 using namespace std;
 RGCinitVals initSizes;
 
+mutex rgcMutex;
+condition_variable rgcCond;
+
 void visualEngine(){
 
-    float **rgcInputPin;
-    auto *rgcPins = new queue<float**>;
-    initSizes = retrgcinits();
-
-    rgcInputPin = (float**)malloc(initSizes.rgcArrayH * sizeof(float*));
-
-    for(int i = 0; i < initSizes.rgcArrayH; i+=1){
-        rgcInputPin[i] = (float*)malloc(initSizes.xWidths[i] * sizeof(float));
-    }
-    rgcPins->push(rgcInputPin);
-    visualPass1(rgcPins, initSizes.xWidths, initSizes.rgcArrayH, initSizes.yMatches, initSizes.RGCcount);
+    auto *rgcPinsL = new queue<float**>;
+    auto *rgcPinsR = new queue<float**>;;
+    visualPass1(rgcPinsL, rgcPinsR, ref(rgcMutex), ref(rgcCond));
     // rgcPins->pop();
-    cout << rgcPins->front()[6][8] << endl;
+    cout << rgcPinsL->front()[6][8] << endl;
 
 }
