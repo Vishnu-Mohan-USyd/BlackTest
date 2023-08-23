@@ -1287,7 +1287,6 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         auto start = std::chrono::high_resolution_clock::now();
         frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
         frameRight = video_reader_read_frame(&vr_stateRight, frame_data_right, &pts);
-
         cudaMemcpy(ffmpegLY, frameLeft->data[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice);
         cudaMemcpy(ffmpegRY, frameRight->data[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice);
         cudaMemcpy(ffmpegLU, frameLeft->data[1], (numOfPixels / 4) * sizeof(::uint8_t), cudaMemcpyHostToDevice);
@@ -1296,9 +1295,7 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         cudaMemcpy(ffmpegRV, frameRight->data[2], (numOfPixels / 4) * sizeof(::uint8_t), cudaMemcpyHostToDevice);
         params.vLineSize = frameLeft->linesize[2];
         cudaSetDevice(0);
-        ffmpeg2World <<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>> (worldLeft, worldRight, ffmpegLY, ffmpegRY,
-                                                                                ffmpegLU, ffmpegRU, ffmpegLV, ffmpegRV, params);
-        cudaDeviceSynchronize();
+
 
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
@@ -1325,6 +1322,11 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
 
         // Creates test frame
         if(toIgnore == 0) createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, params);
+        cudaDeviceSynchronize();
+
+        // Changes the ffmpeg YUV frames to RGB WorldFrames
+        ffmpeg2World <<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>> (worldLeft, worldRight, ffmpegLY, ffmpegRY,
+                                                                            ffmpegLU, ffmpegRU, ffmpegLV, ffmpegRV, params);
         cudaDeviceSynchronize();
 
         // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
