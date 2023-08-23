@@ -52,6 +52,7 @@ typedef struct {
     int testr;
     int perspWidth;
     int perspHeight;
+    int vLineSize;
     int worldWidth;
     int worldHeight;
     double longmin,longmax;
