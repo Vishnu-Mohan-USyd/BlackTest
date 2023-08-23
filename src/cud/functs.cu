@@ -1293,7 +1293,6 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         cudaMemcpy(ffmpegRU, frameRight->data[1], (numOfPixels / 4) * sizeof(::uint8_t), cudaMemcpyHostToDevice);
         cudaMemcpy(ffmpegLV, frameLeft->data[2], (numOfPixels / 4) * sizeof(::uint8_t), cudaMemcpyHostToDevice);
         cudaMemcpy(ffmpegRV, frameRight->data[2], (numOfPixels / 4) * sizeof(::uint8_t), cudaMemcpyHostToDevice);
-        params.vLineSize = frameLeft->linesize[2];
         cudaSetDevice(0);
 
 
@@ -1313,6 +1312,7 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         cudaDeviceSynchronize();
         rgcparams.divFactors = retinaDivs;
         rgcparams.rgcArrLen = rgcArrayHeight;
+        params.vLineSize = frameLeft->linesize[2];
         params.transform = devTrans;
 
 
@@ -1357,7 +1357,7 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         cudaSetDevice(0);
 
         // Transfer perspective frame back after computation - not necessary
-        cudaMemcpy(perspHost, perspLeft, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
 
 
@@ -1366,19 +1366,6 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         cudaMemcpy(RGCdets, RGCDetsDev, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
         for(int p = 0; p < rgcArrayHeight; p+=1){
             cudaMemcpy(RGCdetsPin[p], RGCdets[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
-//        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
-//        for(int j = 0; j < xWidthsHost[p]; j+=1){
-//            if(RGCdetsPin[p][j].detType == LUM) cout << ".";
-//            else {
-//                if (RGCdetsPin[p][j].colID == R_rgc) printf("\033[1;31m.\033[0m");
-//                if (RGCdetsPin[p][j].colID == G_rgc) printf("\033[1;32m.\033[0m");
-//                if (RGCdetsPin[p][j].colID == B_rgc) printf("\033[1;34m.\033[0m");
-//                if (RGCdetsPin[p][j].colID == Y_rgc) printf("\033[1;33m.\033[0m");
-//            }
-//
-//            cout << " ";
-//        }
-//        cout << endl;
         }
 
         rgcInputPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
@@ -1484,3 +1471,17 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
 //        if(i%36 == 35){
 //            cudaSetDevice(0);
 //            cudaDeviceSynchronize();
+
+//        cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+//        for(int j = 0; j < xWidthsHost[p]; j+=1){
+//            if(RGCdetsPin[p][j].detType == LUM) cout << ".";
+//            else {
+//                if (RGCdetsPin[p][j].colID == R_rgc) printf("\033[1;31m.\033[0m");
+//                if (RGCdetsPin[p][j].colID == G_rgc) printf("\033[1;32m.\033[0m");
+//                if (RGCdetsPin[p][j].colID == B_rgc) printf("\033[1;34m.\033[0m");
+//                if (RGCdetsPin[p][j].colID == Y_rgc) printf("\033[1;33m.\033[0m");
+//            }
+//
+//            cout << " ";
+//        }
+//        cout << endl;
