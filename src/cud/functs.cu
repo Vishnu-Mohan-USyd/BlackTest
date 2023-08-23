@@ -1283,6 +1283,7 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
 
     vector<::uint8_t *> frameArrayLeft, frameArrayRight;
     int frameIndex = 0; int toIgnore = 0;
+
     while(true){
         auto start = std::chrono::high_resolution_clock::now();
         frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
@@ -1314,11 +1315,6 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         rgcparams.rgcArrLen = rgcArrayHeight;
         params.vLineSize = frameLeft->linesize[2];
         params.transform = devTrans;
-
-
-        //int frameStorageCountr = 0;
-        // Starts clock
-
 
         // Creates test frame
         if(toIgnore == 0) createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, params);
