@@ -988,7 +988,7 @@ void ffmpeg2World(::uint8_t  *worldLeft, ::uint8_t  *worldRight, ::uint8_t  *ffl
 
 }
 
-void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex &rgcMut, condition_variable &rgcCond){
+void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, queue<RGC**> *rgcDetsQ, vid2rgcParams *v2rp, mutex &rgcMut, condition_variable &rgcCond){
 
 
     // Video processing parameters
@@ -1136,12 +1136,18 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
     }
     rgcArrayHeight += 1;
 
+    v2rp->xWid = xWidthsHost;
+    v2rp->yMat = yMatchHost;
+    *v2rp->rgcArrH = rgcArrayHeight;
+    *v2rp->RGCcnt = RGCcount;
+
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
     RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev;
-    float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d, **rgcInputPin;
+    float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d, **rgcInputPin_l, **rgcInputPin_r;
     rgcInputsLeft_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcInputsRight_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    rgcInputPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
+    rgcInputPin_r = (float**)malloc(rgcArrayHeight * sizeof(float*));
     cudaMalloc(&RGCDetsDev, rgcArrayHeight * sizeof(RGC*));
     cudaMalloc(&rgcInputsLeft_d, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&rgcInputsRight_d, rgcArrayHeight * sizeof(float*));
@@ -1151,7 +1157,7 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
     for(int i = 0; i < rgcArrayHeight; i+=1){
         cudaMalloc((void**) &RGCdets[i], ((xWidthsHost[i]*sizeof(RGC))));
         RGCdetsPin[i] = (RGC*) malloc(xWidthsHost[i] * sizeof(RGC));
-        rgcInputPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+        rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcInputsLeft_h[i], xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcInputsRight_h[i], xWidthsHost[i] * sizeof(float));
     }
@@ -1245,7 +1251,6 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
     // ------------------------------------------------------------------------------------
 
     // -------------------- Prep - stuff for world2persp ----------------------------------
-    cout << numOfPixels << endl;
     cudaSetDevice(0);
     cudaStreamCreate ( &memStream1) ;
     cudaStreamCreate ( &funcStream1) ;
@@ -1285,7 +1290,8 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
     int frameIndex = 0; int toIgnore = 0;
 
     while(true){
-        auto start = std::chrono::high_resolution_clock::now();
+
+
         frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
         frameRight = video_reader_read_frame(&vr_stateRight, frame_data_right, &pts);
         cudaMemcpy(ffmpegLY, frameLeft->data[0], numOfPixels * sizeof(::uint8_t), cudaMemcpyHostToDevice);
@@ -1297,11 +1303,9 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         cudaSetDevice(0);
 
 
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-        cout << "Net duration of visual pass : " << duration << endl;
 
 
+        auto start = std::chrono::high_resolution_clock::now();
 
         // --------------- Initial prep ----------------------
         cudaSetDevice(0);
@@ -1349,6 +1353,7 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
 
 
 
+
         // Transfers computed values back to host
         cudaSetDevice(0);
 
@@ -1359,24 +1364,32 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
 
 
         // Transfers RGC details array back after initialisation
-        cudaMemcpy(RGCdets, RGCDetsDev, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
-        for(int p = 0; p < rgcArrayHeight; p+=1){
-            cudaMemcpy(RGCdetsPin[p], RGCdets[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
+        if(toIgnore == 0){
+            cudaMemcpy(RGCdets, RGCDetsDev, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
+            for(int p = 0; p < rgcArrayHeight; p+=1){
+                cudaMemcpy(RGCdetsPin[p], RGCdets[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
+            }
+            rgcDetsQ->push(RGCdetsPin);
         }
 
-        rgcInputPin = (float**)malloc(rgcArrayHeight * sizeof(float*));
+
+        rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
+        rgcInputPin_r = (float**)malloc(rgcArrayHeight * sizeof(float*));
         for(int i = 0; i < rgcArrayHeight; i+=1){
-            rgcInputPin[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+            rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+            rgcInputPin_r[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         }
 
         // Transfers RGC inputs back - required if doing neural computation on another GPU
         cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+        cudaMemcpy(rgcInputsRight_h, rgcInputsRight_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
         for(int p = 0; p < 100; p+=1){
-            cudaMemcpy(rgcInputPin[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(rgcInputPin_l[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(rgcInputPin_r[p], rgcInputsRight_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
 
 //        for(int j = 0; j < xWidthsHost[p]; j+=1){
-//            if(rgcInputPin[p][j] != j){
-//                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin[p][j] << endl;
+//            if(rgcInputPin_l[p][j] != j){
+//                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin_l[p][j] << endl;
 //            }
 //        }
 // ---------------------------------- Print RGC vals ---------------------------------
@@ -1384,10 +1397,10 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
 //            for(int j = 0; j < xWidthsHost[p]; j+=1){
 //                if(true){
 //                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
-//                        printf("\033[1;31m%f\033[0m", rgcInputPin[p][j]);
+//                        printf("\033[1;31m%f\033[0m", rgcInputPin_l[p][j]);
 //                        cout << " - ";
 //                    } else {
-//                        cout << rgcInputPin[p][j] << " - ";
+//                        cout << rgcInputPin_l[p][j] << " - ";
 //                    }
 //                }
 //            }
@@ -1396,10 +1409,16 @@ void visualPass1 (queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex 
         }
         {
             lock_guard<mutex> lock(rgcMut);
-            rgcQueue_l->push(rgcInputPin);
+            rgcQueue_l->push(rgcInputPin_l);
+            rgcQueue_r->push(rgcInputPin_r);
+            *frameNum = *frameNum + 1;
         }
-        cout << "Current Size : " << rgcQueue_l->size() << std::endl;
+        // cout << "Current Size : " << rgcQueue_l->size() << std::endl;
         rgcCond.notify_all();
+
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+        cout << "Net duration of visual pass : " << duration << endl;
 
 
 
