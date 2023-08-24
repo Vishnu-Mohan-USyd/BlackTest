@@ -15,6 +15,10 @@ typedef struct {
 } RGCinitVals;
 
 typedef struct {
+    int *RGCcnt, *xWid, *yMat, *rgcArrH;
+} vid2rgcParams;
+
+typedef struct {
     int type;
     int detType;
     int colID;
@@ -106,7 +110,8 @@ void CalcFrustum(void);
 XYZ CameraRay(double,double);
 XYZ VectorSum(double,XYZ,double,XYZ,double,XYZ,double,XYZ);
 
-void visualPass1(queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, mutex &rgcMut, condition_variable &rgcCond);
+void vid2rgc(int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, queue<RGC**> *rgcDetsQ, vid2rgcParams *v2rp,
+             mutex &rgcMut, condition_variable &rgcCond);
 int testFunct ();
 int mrain (std::vector<std::vector<float>> &temp);
 void saxpy();
