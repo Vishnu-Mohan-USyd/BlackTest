@@ -5,6 +5,6 @@
 #ifndef TEST1_RGC_CUH
 #define TEST1_RGC_CUH
 void saxpy();
-int rgcSpikers();
+int rgcSpikers (queue<float**> *rihq_l, queue<float**> *rihq_r, vid2rgcParams *v2rp, queue<RGC**> *rgcdetails, mutex &rgcMut, condition_variable &rgcCond);
 
 #endif //TEST1_RGC_CUH
