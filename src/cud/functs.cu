@@ -1140,6 +1140,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     v2rp->yMat = yMatchHost;
     *v2rp->rgcArrH = rgcArrayHeight;
     *v2rp->RGCcnt = RGCcount;
+    *v2rp->perspH = perspHeight;
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
     RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev;
