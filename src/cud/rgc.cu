@@ -18,35 +18,39 @@
 using namespace matplot;
 using namespace std;
 
-RGCinitVals  rets;
+vid_rgc_params vidRgcParams;
 //
 // Created by kasm-user on 7/26/23.
 //
+
+
 __global__
-void saxpy(double *x, float ** da)
-{
+void RGCprocessing (float** rgcInputsL, float** rgcInputsR, RGC** rgcdets, vid_rgc_params vidParams ){
     int i = blockIdx.x * blockDim.x + threadIdx.x;
+    // Gets the current coords in the RGC array
+    int tempCumWidth = 0, posX = 0, posY = 0;
+    for(int j = 0; j < vidParams.rgcArrayHeight; j+=1){
+        tempCumWidth += vidParams.xWidths[j];
+        if(i < tempCumWidth){
+            posY = j;
+            posX = i - (tempCumWidth - vidParams.xWidths[j]);
+            break;
+        }
+    }
 
-    // da[3][4] = 87;
-    x[i] = da[76][88];
-
-
-}
-
-void RGCprocessing (float** rgcInputsL, float** rgcInputsR, RGC** rgcdets){
-    
 }
 
 int rgcSpikers (queue<float**> *rihq_l, queue<float**> *rihq_r, vid2rgcParams *v2rp, queue<RGC**> *rgcdetails, mutex &rgcMut, condition_variable &rgcCond){
     // ---------------- Transferring data from vid2rgc to rgcSpikers ---------------
-    int *xWidthsHost, *yMatchesHost, rgcArrayHeight, RGCcount;
+    int *xWidthsHost, *yMatchesHost, rgcArrayHeight, RGCcount, *xWid_d, *yMat_d;
     float **rgcInputsHost_l, **rgcInputsHost_r;
     RGC** RGCdets;
     {
         unique_lock<mutex> lock(rgcMut);
         rgcCond.wait(lock, [&]{ return !rihq_l->empty();});
-        rgcArrayHeight = *v2rp->rgcArrH;
-        RGCcount = *v2rp->RGCcnt;
+        vidRgcParams.rgcArrayHeight = *v2rp->rgcArrH;
+        vidRgcParams.RGCcount = *v2rp->RGCcnt;
+        vidRgcParams.fps = 30;
         xWidthsHost = v2rp->xWid;
         yMatchesHost = v2rp->yMat;
         RGCdets = (RGC**)malloc(rgcArrayHeight * sizeof(RGC*));
@@ -54,6 +58,12 @@ int rgcSpikers (queue<float**> *rihq_l, queue<float**> *rihq_r, vid2rgcParams *v
             RGCdets[i] = (RGC*)malloc(xWidthsHost[i] * sizeof(RGC));
             memcpy(RGCdets[i], rgcdetails->front()[i], (xWidthsHost[i] * sizeof(RGC)));
         }
+        cudaMalloc(&xWid_d, vidRgcParams.rgcArrayHeight * sizeof(int));
+        cudaMalloc(&yMat_d, *v2rp->perspH * sizeof(int));
+        cudaMemcpy(xWid_d, xWidthsHost, vidRgcParams.rgcArrayHeight * sizeof(int), cudaMemcpyHostToDevice);
+        cudaMemcpy(yMat_d, yMatchesHost, *v2rp->perspH * sizeof(int), cudaMemcpyHostToDevice);
+        vidRgcParams.xWidths = xWid_d;
+        vidRgcParams.yMatches = yMat_d;
     }
 
     while(true){
