@@ -15,7 +15,7 @@ typedef struct {
 } RGCinitVals;
 
 typedef struct {
-    int *RGCcnt, *xWid, *yMat, *rgcArrH;
+    int *RGCcnt, *xWid, *yMat, *rgcArrH, *perspH;
 } vid2rgcParams;
 
 typedef struct {
