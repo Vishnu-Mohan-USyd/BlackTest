@@ -35,6 +35,7 @@ void visualEngine(){
     vid2rgcParams *v2rp = (vid2rgcParams*) malloc(4 * sizeof(int*));
     v2rp->RGCcnt = (int*)malloc(sizeof(int));
     v2rp->rgcArrH = (int*)malloc(sizeof(int));
+    v2rp->perspH = (int*)malloc(sizeof(int));
     thread vid2rgcThread(vid2rgc, frameNumber, rgcPinsL, rgcPinsR, rgcDetsPin, v2rp, ref(rgcMutex), ref(rgcCond));
     // rgcPins->pop();
     thread rgc2lgnThread(rgcSpikers, rgcPinsL, rgcPinsR, v2rp, rgcDetsPin, ref(rgcMutex), ref(rgcCond));
