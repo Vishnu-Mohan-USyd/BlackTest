@@ -37,6 +37,14 @@ void RGCprocessing (float** rgcInputsL, float** rgcInputsR, RGC** rgcdets, vid_r
             break;
         }
     }
+    if(rgcdets[posX][posY].type == MIDGET){
+
+
+    } else if(rgcdets[posX][posY].type == PARASOL){
+
+    } else if(rgcdets[posX][posY].type == SBC){
+
+    }
 
 }
 
@@ -45,6 +53,8 @@ int rgcSpikers (queue<float**> *rihq_l, queue<float**> *rihq_r, vid2rgcParams *v
     int *xWidthsHost, *yMatchesHost, rgcArrayHeight, RGCcount, *xWid_d, *yMat_d;
     float **rgcInputsHost_l, **rgcInputsHost_r;
     RGC** RGCdets;
+
+    // ---------------- Initial prep - during first load only -----------------------------
     {
         unique_lock<mutex> lock(rgcMut);
         rgcCond.wait(lock, [&]{ return !rihq_l->empty();});
@@ -65,6 +75,9 @@ int rgcSpikers (queue<float**> *rihq_l, queue<float**> *rihq_r, vid2rgcParams *v
         vidRgcParams.xWidths = xWid_d;
         vidRgcParams.yMatches = yMat_d;
     }
+    // ---------------------------------- X -----------------------------------
+
+    // ----------------------- Program Loop ------------------------------------
 
     while(true){
         {
@@ -84,9 +97,9 @@ int rgcSpikers (queue<float**> *rihq_l, queue<float**> *rihq_r, vid2rgcParams *v
             rihq_r->pop();
         }
 
-
-
     }
+
+    // -------------------------- End of program Loop --------------------------------
 
 }
 
