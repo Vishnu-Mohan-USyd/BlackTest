@@ -24,6 +24,12 @@ RGCinitVals initSizes;
 mutex rgcMutex;
 condition_variable rgcCond;
 
+/*
+ * Assumptions made so far include :
+ *     - The diameters of centers and surrounds
+ *     - Precise spiking related values such as spikes/s and spike amplitudes at different stages.
+ *
+ */
 void visualEngine(){
 
     int frn = 0;
