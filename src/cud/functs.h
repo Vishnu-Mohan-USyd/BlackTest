@@ -91,7 +91,7 @@ typedef struct {
 #define OZ2 24
 #define OZ3  25
 
-// RGC Detection types
+// RGC Detection types (detType)
 #define LUM 30
 #define COLOR 31
 
