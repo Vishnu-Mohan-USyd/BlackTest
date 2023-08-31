@@ -294,14 +294,14 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
         if(rgcX % 20 == 0 && yMatch[currY] % 2 == 0) {
             RGCdet[yMatch[currY]][rgcX].type = PARASOL;
             RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 4;
+            RGCdet[yMatch[currY]][rgcX].cenRfSide = 6;
+            RGCdet[yMatch[currY]][rgcX].surRfWidth = 8;
         }
         if((rgcX + 10) % 20 == 0 && yMatch[currY] % 2 == 1) {
             RGCdet[yMatch[currY]][rgcX].type = PARASOL;
             RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 4;
+            RGCdet[yMatch[currY]][rgcX].cenRfSide = 6;
+            RGCdet[yMatch[currY]][rgcX].surRfWidth = 8;
         }
 
         RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -396,14 +396,14 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
             if(rgcX % 10 == 0 && yMatch[currY] % 2 == 0) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 5;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 8;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 10;
             }
             if((rgcX + 5) % 10 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 5;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 8;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 10;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -503,8 +503,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
             if((rgcX + 4) % 8 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 6;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 12;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 14;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -597,14 +597,14 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
             if(rgcX % 6 == 0 && yMatch[currY] % 2 == 0) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 10;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 12;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 15;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 18;
             }
             if((rgcX + 3) % 6 == 0 && yMatch[currY] % 2 == 1) {
                 RGCdet[yMatch[currY]][rgcX].type = PARASOL;
                 RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 10;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 12;
+                RGCdet[yMatch[currY]][rgcX].cenRfSide = 15;
+                RGCdet[yMatch[currY]][rgcX].surRfWidth = 18;
             }
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
@@ -852,12 +852,14 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenIndex = (RGCdet[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet[posY][posX].perspX * 4);
 
     for (int y = 1; y < (surrSide) + 1; y+=1){
+        // Y boundary condition
         if ((((RGCdet[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet[posY][posX].perspY)) ||
              ((((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)) < midY) && (y > midY) &&
               ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)))))) {
             continue;
         }
         for(int x = 1; x < (surrSide) + 1; x += 1){
+            // X boundary condition
             if ((((RGCdet[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet[posY][posX].perspX)) ||
                  ((((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)) < midX) && (x > midX) &&
                   ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)))))) {
@@ -956,8 +958,10 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenValL = cenSumL / cenIdeal;
     cenValR = cenSumR / cenIdeal;
 
+    // To rectify -ve responses, just multiply the below with
+    // (((cenValR - surrValR) < 0) ? -0 : 1)
     leftInputs[posY][posX] = RGCdet[posY][posX].perspX;
-    rightInputs[posY][posX] = (((cenValR - surrValR) < 0) ? -0 : 1) * (cenValR - surrValR);
+    rightInputs[posY][posX] = (cenValR - surrValR);
 
 }
 
