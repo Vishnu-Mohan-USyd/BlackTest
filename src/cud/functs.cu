@@ -128,17 +128,17 @@ XYZ VectorSum(double d1,XYZ p1,double d2,XYZ p2,double d3,XYZ p3,double d4,XYZ p
 }
 
 __global__
-void createPerspTest(uint8_t  *perspTest, PARAMS deviceParams){
+void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS deviceParams){
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     int x = i % deviceParams.perspWidth;
     int y = i / deviceParams.perspWidth;
 
-    if(x > 350 && x < 700){
-        perspTest[(i * 4)] = 255;
-        perspTest[(i * 4) + 1] = 255;
-        perspTest[(i * 4) + 2] = 255;
-        perspTest[(i * 4) + 3] = 255;
+    if(true){
+        perspTest[(i * 4)] = perspLeft[(i * 4)];
+        perspTest[(i * 4) + 1] = perspLeft[(i * 4) + 1];
+        perspTest[(i * 4) + 2] = perspLeft[(i * 4) + 2];
+        perspTest[(i * 4) + 3] = perspLeft[(i * 4) + 3];
     } else {
         perspTest[(i * 4)] = 0;
         perspTest[(i * 4) + 1] = 0;
@@ -306,6 +306,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
 
         RGCdet[yMatch[currY]][rgcX].perspX = currX;
         RGCdet[yMatch[currY]][rgcX].perspY = currY;
+        RGCdet[yMatch[currY]][rgcX].zone = FOV;
+        RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
     }
 
     // ---------------------- Parafoveal Processing --------------------
@@ -408,6 +410,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
+            RGCdet[yMatch[currY]][rgcX].zone = PARA;
+            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
         }
     }
     // ---------------------------------- X -----------------------------------
@@ -509,6 +513,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
+            RGCdet[yMatch[currY]][rgcX].zone = PERI;
+            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
         }
     }
 
@@ -609,6 +615,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
+            RGCdet[yMatch[currY]][rgcX].zone = OZ1;
+            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
         }
     }
 
@@ -711,6 +719,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
+            RGCdet[yMatch[currY]][rgcX].zone = OZ2;
+            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
         }
     }
 
@@ -812,17 +822,22 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
 
             RGCdet[yMatch[currY]][rgcX].perspX = currX;
             RGCdet[yMatch[currY]][rgcX].perspY = currY;
+            RGCdet[yMatch[currY]][rgcX].zone = OZ3;
+            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
         }
     }
+
+
 
 
     // ------------------------------------- X -------------------------------------
 
 
+
 }
 
 __global__
-void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRight, float** leftInputs, float** rightInputs, int* xWidths, int* yMatch, RGC** RGCdet)
+void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLeft, uint8_t  *perspRight, float** leftInputs, float** rightInputs, int* xWidths, int* yMatch, RGC** RGCdet)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -958,6 +973,14 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t  *perspLeft, uint8_t  *perspRi
     cenValL = cenSumL / cenIdeal;
     cenValR = cenSumR / cenIdeal;
 
+    //if()
+
+    if(RGCdet[posY][posX].type == MIDGET){
+        perspTest[RGCdet[posY][posX].perspID] =  (int)(0);
+        perspTest[RGCdet[posY][posX].perspID + 1] = (int)(0);
+        perspTest[RGCdet[posY][posX].perspID + 2] =  (int)(0);
+        perspTest[RGCdet[posY][posX].perspID + 3] = (int)(0);
+    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     leftInputs[posY][posX] = RGCdet[posY][posX].perspX;
@@ -1021,7 +1044,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         printf("Couldn't init GLFW\n");
     }
 
-    window = glfwCreateWindow(1280, 720, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(1920, 1080, "Hello World", NULL, NULL);
     if (!window) {
         printf("Couldn't open window\n");
     }
@@ -1083,7 +1106,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         rgcparams.divFactors[2] = 3; // 34,000
         rgcparams.oz1up = 120;
         rgcparams.oz1side = 255;
-        rgcparams.divFactors[3] = 3; // 60,000 122400-corners 336600-sides 158400-tops
+        rgcparams.divFactors[3] = 4; // 60,000 122400-corners 336600-sides 158400-tops
         rgcparams.oz2up = 250;
         rgcparams.oz2side = 510;
         rgcparams.divFactors[4] = 5; // 81,000
@@ -1325,9 +1348,6 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         params.vLineSize = frameLeft->linesize[2];
         params.transform = devTrans;
 
-        // Creates test frame
-        if(toIgnore == 0) createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, params);
-        cudaDeviceSynchronize();
 
         // Changes the ffmpeg YUV frames to RGB WorldFrames
         ffmpeg2World <<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>> (worldLeft, worldRight, ffmpegLY, ffmpegRY,
@@ -1338,12 +1358,16 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum);
         cudaDeviceSynchronize();
 
+        // Creates test frame
+        createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, perspLeft, params);
+        cudaDeviceSynchronize();
+
         // Initializes RGC details array (RGCDetsDev)
         if(toIgnore == 0) initRGCdets<<<((perspHeight * perspWidth) + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, xWidthsDev, yMatchDev, RGCDetsDev);
         cudaDeviceSynchronize();
 
         // Forms RGC inputs
-        formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspLeft, perspRight,
+        formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspLeft, perspRight,
                                                                             rgcInputsLeft_d, rgcInputsRight_d,
                                                                             xWidthsDev, yMatchDev, RGCDetsDev);
         cudaDeviceSynchronize();
@@ -1363,7 +1387,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cudaSetDevice(0);
 
         // Transfer perspective frame back after computation - not necessary
-        cudaMemcpy(perspHost, perspRight, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+        //else cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
 
 
@@ -1388,7 +1413,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         // Transfers RGC inputs back - required if doing neural computation on another GPU
         cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
         cudaMemcpy(rgcInputsRight_h, rgcInputsRight_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-        for(int p = 0; p < 100; p+=1){
+        for(int p = 0; p < 800; p+=1){
             cudaMemcpy(rgcInputPin_l[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
             cudaMemcpy(rgcInputPin_r[p], rgcInputsRight_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -1435,15 +1460,15 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glBegin(GL_QUADS);
         glTexCoord2d(0,0); glVertex2i(0, 0);
-        glTexCoord2d(1,0); glVertex2i(0 + 1280, 0);
-        glTexCoord2d(1,1); glVertex2i(0 + 1280, 0 + 720);
-        glTexCoord2d(0,1); glVertex2i(0, 0 + 720);
+        glTexCoord2d(1,0); glVertex2i(0 + 1920, 0);
+        glTexCoord2d(1,1); glVertex2i(0 + 1920, 0 + 1080);
+        glTexCoord2d(0,1); glVertex2i(0, 0 + 1080);
         glEnd();
         glDisable(GL_TEXTURE_2D);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
-        // ::getchar()
+        // ::getchar();
         toIgnore+=1;
     }
 
