@@ -26,7 +26,7 @@ typedef struct {
     int surRfWidth;
     int cenRfSide;
     int rFweights[250];
-    int perspX, perspY;
+    int perspX, perspY, perspID;
 } RGC;
 
 typedef struct {
