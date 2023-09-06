@@ -231,632 +231,6 @@ void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRi
     // perspLeft[i] = deviceParams->testr;
 
 }
-
-__global__
-void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-    /* Here we aim to divide i into different retinal compartments
-     *
-     * Parasol to midget sizes have been found to vary from 10:1 at the periphery (25%) to 3:1 at central retina (10%)
-     *
-     * ---------------- For 8k Video --------------
-     *
-     * Fovea - 300 x 300 || Total RGCs are 90,000
-     * Parafovea - 200 plus on all sides || Total RGCs are 100,150
-     * Perifovea - 300 plus on all sides || Total RGCs are 133,200
-     * Outer Zone 1 - 400 up, 500 side || Total RGCs are 196,250 (3.14M pixels)
-     * Outer Zone 2 - 500 up, 1000 side || Total RGCs are 132,625 (8.25M pixels)
-     * Outer Zone 3 - 600 up, 1500 side || Total RGCs are 125,300 (18.06M pixels)
-     *
-     * Total rgcLeft collection count - 777,526 RGCs
-     *
-     * ---------------- For 4k Video --------------
-     *
-     * Fovea - 180 x 180 || Total RGCs are 32,400
-     * Parafovea - 100 plus on all sides || Total RGCs are 100,150
-     * Perifovea - 300 plus on all sides || Total RGCs are 133,200
-     * Outer Zone 1 - 400 up, 500 side || Total RGCs are 196,250 (3.14M pixels)
-     * Outer Zone 2 - 500 up, 1000 side || Total RGCs are 132,625 (8.25M pixels)
-     * Outer Zone 3 - 600 up, 1500 side || Total RGCs are 125,300 (18.06M pixels)
-     *
-     * Total rgcLeft collection count - 777,526 RGCs
-     * */
-
-    int fovY = (rgcparams.perspHeight / 2) - 1;
-    int fovX = (rgcparams.perspWidth / 2) - 1;
-    int currY = i/rgcparams.perspWidth;
-    int currX = i - (currY * rgcparams.perspWidth);
-    int Xc = abs(fovX - currX);
-    int Yc = abs(fovX - currX);
-    int index = 0;
-    int rgcX;
-    int colFactor = 4;
-
-
-    int fovWidth = rgcparams.foveaWidth; int fovWidthMidPre = ((fovWidth / 2) - 1); int fovWidthMidPost = (fovWidth / 2);
-    int paraLength = rgcparams.paraLength;
-    int periLength = rgcparams.periLength;
-
-
-
-
-    // ----------------------- Foveal Processing -----------------------
-    if((currX >= fovX - fovWidthMidPre) && (currY >= fovY - fovWidthMidPre) && (currX <= fovX + fovWidthMidPost) && (currY <= fovY + fovWidthMidPost)){
-
-        // --------------------------------------------------------------------------------------------
-        // Converting from 2D modelled frame to linear RGC array
-        rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-               (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-               (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
-               (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
-               (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (rgcparams.paraLength / rgcparams.divFactors[1])) +
-               (currX - (fovX - (fovWidthMidPre)));
-
-        RGCdet[yMatch[currY]][rgcX].type = MIDGET;
-        RGCdet[yMatch[currY]][rgcX].detType = LUM;
-        RGCdet[yMatch[currY]][rgcX].cenRfSide = 3;
-        RGCdet[yMatch[currY]][rgcX].surRfWidth = 3;
-        if((rgcX + 1) % colFactor == 0 && yMatch[currY] % 2 == 0) {
-            RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-            if(((rgcX + 1) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-            if(((rgcX + 1) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-            if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-            if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-        }
-        if((rgcX + 3) % colFactor == 0 && yMatch[currY] % 2 == 1) {
-            RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-            if(((rgcX + 3) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-            if(((rgcX + 3) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-            if(((rgcX + 3) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-            if(((rgcX + 3) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-        }
-        if(rgcX % 20 == 0 && yMatch[currY] % 2 == 0) {
-            RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-            RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 6;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 8;
-        }
-        if((rgcX + 10) % 20 == 0 && yMatch[currY] % 2 == 1) {
-            RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-            RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 6;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 8;
-        }
-
-        RGCdet[yMatch[currY]][rgcX].perspX = currX;
-        RGCdet[yMatch[currY]][rgcX].perspY = currY;
-        RGCdet[yMatch[currY]][rgcX].zone = FOV;
-        RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
-    }
-
-    // ---------------------- Parafoveal Processing --------------------
-
-    if (// Inner Perimeters
-
-        // Left
-            ((currX < (fovX - fovWidthMidPre)) && (currX >= (fovX - (fovWidthMidPre + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))) ||
-            // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY < (fovY - fovWidthMidPre))) ||
-            // Right
-            ((currX > (fovX + fovWidthMidPost)) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))) ||
-            // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength))) && (currY > (fovY + fovWidthMidPost)) && (currY <= (fovY + (fovWidthMidPost + paraLength))))){
-
-        int checkr = 0;
-
-        // Picking out units of computation
-        if (((currX % rgcparams.divFactors[1]) == 0) && ((currY % rgcparams.divFactors[1]) == 0)){
-
-            // To check if the current index is in the middle,vertically
-            if((currY >= (fovY - (fovWidthMidPre))) && (currY <= (fovY + (fovWidthMidPost)))){
-
-                // -------------- Translating Indices ----------------
-                //Left Section
-                if(currX < fovX){
-                    checkr = 1;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
-                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
-                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength))) / rgcparams.divFactors[1]));
-                }
-                    // Right Section
-                else {
-                    checkr = 2;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (((currY > 0) && (currY < rgcparams.perspHeight)) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-
-                           (int)((((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && !(((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up)))))) ? 1 : 0) * ((int)rgcparams.oz2side / (int)rgcparams.divFactors[4]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)))))) ? 1 : 0) * ((int)rgcparams.oz1side / (int)rgcparams.divFactors[3]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)))))) ? 1 : 0) * ((int)rgcparams.periLength / (int)rgcparams.divFactors[2]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength)))))) ? 1 : 0) * ((int)rgcparams.paraLength / (int)rgcparams.divFactors[1])) +
-                                 (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (double)rgcparams.paraLength + (currX - (fovX + (fovWidthMidPost + 1)))) / (double)rgcparams.divFactors[1]))) +
-
-
-                           (rgcparams.foveaWidth * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)))) ? 1 : 0)) +
-                           (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength)))))) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + 1))) / rgcparams.divFactors[1]));
-                }
-            }
-
-                // Checks if current index is in the top or bottom sections
-            else {
-                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-                       (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
-                       (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (rgcparams.periLength / rgcparams.divFactors[2])) +
-                       (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength))) / rgcparams.divFactors[1]));
-
-            }
-
-            // Entering data
-
-
-            RGCdet[yMatch[currY]][rgcX].type = MIDGET;
-            RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 2;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 2;
-            if((rgcX + 1) % colFactor == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 1) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-            }
-            if((rgcX + 3) % colFactor == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 3) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-            }
-            if(rgcX % 10 == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 8;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 10;
-            }
-            if((rgcX + 5) % 10 == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 8;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 10;
-            }
-
-            RGCdet[yMatch[currY]][rgcX].perspX = currX;
-            RGCdet[yMatch[currY]][rgcX].perspY = currY;
-            RGCdet[yMatch[currY]][rgcX].zone = PARA;
-            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
-        }
-    }
-    // ---------------------------------- X -----------------------------------
-
-
-    //------------------------ Perifoveal Processing -------------------------
-    if (// Inner Perimeters
-
-        // Left
-            ((currX < (fovX - (fovWidthMidPre + paraLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))) ||
-            // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY < (fovY - (fovWidthMidPre + paraLength)))) ||
-            // Right
-            ((currX > (fovX + fovWidthMidPost + paraLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))) ||
-            // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength))) && (currY > (fovY + fovWidthMidPost + paraLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength))))){
-        int checkr = 0;
-
-
-        // Picking out units of computation
-        if (((currX) % rgcparams.divFactors[2] == 0) && ((currY) % rgcparams.divFactors[2] == 0)){
-
-            // To check if the current index is in the middle,vertically
-            if((currY >= (fovY - (fovWidthMidPre + paraLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength)))){
-
-                // -------------- Translating Indices ----------------
-                //Left Section
-                if(currX < fovX){
-                    checkr = 1;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
-                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) / rgcparams.divFactors[2]));
-                }
-                    // Right Section
-                else {
-                    checkr = 2;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (((currY > 0) && (currY < rgcparams.perspHeight)) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-
-                           (int)((((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && !(((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up)))))) ? 1 : 0) * ((int)rgcparams.oz2side / (int)rgcparams.divFactors[4]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)))))) ? 1 : 0) * ((int)rgcparams.oz1side / (int)rgcparams.divFactors[3]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)))))) ? 1 : 0) * ((int)rgcparams.periLength / (int)rgcparams.divFactors[2])) +
-                                 (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (double)rgcparams.periLength + (currX - (fovX + (fovWidthMidPost + paraLength + 1)))) / (double)rgcparams.divFactors[2]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength)))))) ? 1 : 0) * ((int)rgcparams.paraLength / (int)rgcparams.divFactors[1])) +
-                                 (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[1]))) +
-
-
-                           (rgcparams.foveaWidth * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)))) ? 1 : 0)) +
-                           (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)))))) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + 1))) / rgcparams.divFactors[2]));
-                }
-            }
-
-                // Checks if current index is in the top or bottom sections
-            else {
-                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-                       (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (rgcparams.oz1side / rgcparams.divFactors[3])) +
-                       (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength))) / rgcparams.divFactors[2]));
-
-            }
-
-            // Entering data
-            RGCdet[yMatch[currY]][rgcX].type = MIDGET;
-            RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 2;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 3;
-            if((rgcX + 1) % colFactor == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 1) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-            }
-            if((rgcX + 3) % colFactor == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 3) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-            }
-            if(rgcX % 8 == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 5;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 6;
-            }
-            if((rgcX + 4) % 8 == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 12;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 14;
-            }
-
-            RGCdet[yMatch[currY]][rgcX].perspX = currX;
-            RGCdet[yMatch[currY]][rgcX].perspY = currY;
-            RGCdet[yMatch[currY]][rgcX].zone = PERI;
-            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
-        }
-    }
-
-    // ------------------------------------------ OZ1 processing -------------------------------------
-
-    if (// Inner Perimeters
-
-        // Left
-            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)))) ||
-            // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength)))) ||
-            // Right
-            ((currX > (fovX + fovWidthMidPost + paraLength + periLength)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)))) ||
-            // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up))))){
-
-        int checkr = 0;
-
-        // Picking out units of computation
-        if (((currX) % rgcparams.divFactors[3] == 0) && ((currY) % rgcparams.divFactors[3] == 0)){
-
-            // To check if the current index is in the middle,vertically
-            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength)))){
-
-                // -------------- Translating Indices ----------------
-                //Left Section
-                if(currX < fovX){
-                    checkr = 1;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) / rgcparams.divFactors[3]));
-                }
-                    // Right Section
-                else {
-                    checkr = 2;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (((currY > 0) && (currY < rgcparams.perspHeight)) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-
-                           (int)((((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && !(((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up)))))) ? 1 : 0) * ((int)rgcparams.oz2side / (int)rgcparams.divFactors[4]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)))))) ? 1 : 0) * ((int)rgcparams.oz1side / (int)rgcparams.divFactors[3])) +
-                                 (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side) + (currX - (fovX + (fovWidthMidPost + paraLength + periLength + 1)))) / (double)rgcparams.divFactors[3]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)))))) ? 1 : 0) * ((int)rgcparams.periLength / (int)rgcparams.divFactors[2])) +
-                                 (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength)) / (double)rgcparams.divFactors[2]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength)))))) ? 1 : 0) * ((int)rgcparams.paraLength / (int)rgcparams.divFactors[1])) +
-                                 (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[1]))) +
-
-
-                           (rgcparams.foveaWidth * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)))) ? 1 : 0)) +
-                           (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)))))) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + 1))) / rgcparams.divFactors[3]));
-                }
-            }
-
-                // Checks if current index is in the top or bottom sections
-            else {
-                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (rgcparams.oz2side / rgcparams.divFactors[4])) +
-                       (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) / rgcparams.divFactors[3]));
-
-            }
-
-            // Entering data
-
-            RGCdet[yMatch[currY]][rgcX].type = MIDGET;
-            RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 4;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 5;
-            if((rgcX + 1) % colFactor == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 1) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-            }
-            if((rgcX + 3) % colFactor == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 3) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-            }
-            if(rgcX % 6 == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 15;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 18;
-            }
-            if((rgcX + 3) % 6 == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 15;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 18;
-            }
-
-            RGCdet[yMatch[currY]][rgcX].perspX = currX;
-            RGCdet[yMatch[currY]][rgcX].perspY = currY;
-            RGCdet[yMatch[currY]][rgcX].zone = OZ1;
-            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
-        }
-    }
-
-    // ------------------------------------- X -------------------------------------
-
-    // ------------------------------------------ OZ2 processing -------------------------------------
-
-    if (// Inner Perimeters
-
-        // Left
-            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))) ||
-            // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + rgcparams.oz1up)))) ||
-            // Right
-            ((currX > (fovX + fovWidthMidPost + paraLength + periLength + rgcparams.oz1side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))) ||
-            // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))))){
-
-        int checkr = 0;
-
-        // Picking out units of computation
-        if (((currX) % rgcparams.divFactors[4] == 0) && ((currY) % rgcparams.divFactors[4] == 0)){
-
-            // To check if the current index is in the middle,vertically
-            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up)))){
-
-                // -------------- Translating Indices ----------------
-                //Left Section
-                if(currX < fovX){
-                    checkr = 1;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                           (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) / rgcparams.divFactors[4]));
-                }
-                    // Right Section
-                else {
-                    checkr = 2;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (((currY > 0) && (currY < rgcparams.perspHeight)) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-
-
-                           (int)((((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * (((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && !(((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up)))))) ? 1 : 0) * ((((int)rgcparams.oz2side) / (int)rgcparams.divFactors[4])) + ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + 1))) / (int)rgcparams.divFactors[4])) +
-                                 (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side) + (double)rgcparams.oz2side + (currX - (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + 1)))) / (double)rgcparams.divFactors[4]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)))))) ? 1 : 0) * ((int)rgcparams.oz1side / (int)rgcparams.divFactors[3])) +
-                                 (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side)) / (double)rgcparams.divFactors[3]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)))))) ? 1 : 0) * ((int)rgcparams.periLength / (int)rgcparams.divFactors[2])) +
-                                 (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength)) / (double)rgcparams.divFactors[2]))) +
-
-
-                           (int)((((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength)))))) ? 1 : 0) * ((int)rgcparams.paraLength / (int)rgcparams.divFactors[1])) +
-                                 (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[1]))) +
-
-
-                           (rgcparams.foveaWidth * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)))) ? 1 : 0));
-                }
-            }
-
-                // Checks if current index is in the top or bottom sections
-            else {
-                checkr = 2;
-                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-                       (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) / rgcparams.divFactors[4]));
-
-            }
-
-            // Entering data
-
-            RGCdet[yMatch[currY]][rgcX].type = MIDGET;
-            RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 12;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 20;
-            if((rgcX + 1) % colFactor == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 1) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-            }
-            if((rgcX + 3) % colFactor == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 3) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-            }
-            if(rgcX % 5 == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 24;
-            }
-            if((rgcX + 2) % 5 == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 24;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 24;
-            }
-
-            RGCdet[yMatch[currY]][rgcX].perspX = currX;
-            RGCdet[yMatch[currY]][rgcX].perspY = currY;
-            RGCdet[yMatch[currY]][rgcX].zone = OZ2;
-            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
-        }
-    }
-
-    // ------------------------------------------ OZ3 processing -------------------------------------
-
-    if (// Inner Perimeters
-
-        // Left
-            ((currX < (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side))) && (currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up)))) ||
-            // Top
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) && (currY < (fovY - (fovWidthMidPre + paraLength  + periLength + rgcparams.oz1up + rgcparams.oz2up)))) ||
-            // Right
-            ((currX > (fovX + fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side)) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up)))) ||
-            // Bottom
-            ((currX >= (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currX <= (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) && (currY > (fovY + fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up + rgcparams.oz3up))))){
-
-        int checkr = 0;
-
-        // Picking out units of computation
-        if (((currX) % rgcparams.divFactors[5] == 0) && ((currY) % rgcparams.divFactors[5] == 0)){
-
-
-            // To check if the current index is in the middle,vertically
-            if((currY >= (fovY - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up))) && (currY <= (fovY + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1up + rgcparams.oz2up)))){
-
-
-
-                // -------------- Translating Indices ----------------
-                //Left Section
-                if(currX < fovX){
-                    checkr = 4;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX - (fovX - (fovWidthMidPre + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + rgcparams.oz3side))) / rgcparams.divFactors[5]));
-                }
-                    // Right Section
-                else {
-                    checkr = 5;
-                    rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * (((currY > 0) && (currY < rgcparams.perspHeight)) ? 1 : 0) * (rgcparams.oz3side / rgcparams.divFactors[5])) +
-
-                           // side series (that's why we multiply by 2)
-                           (int)((((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && !(((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up)))))) ? 1 : 0) * ((int)rgcparams.oz2side / (int)rgcparams.divFactors[4])) +
-                                 // mid series
-                                 (((currY % rgcparams.divFactors[4] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side) + (2 * (double)rgcparams.oz2side)) / (double)rgcparams.divFactors[4]))) +
-
-                           (int)((((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)))))) ? 1 : 0) * ((int)rgcparams.oz1side / (int)rgcparams.divFactors[3])) +
-                                 (((currY % rgcparams.divFactors[3] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side)) / (double)rgcparams.divFactors[3]))) +
-
-                           (int)((((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)))))) ? 1 : 0) * ((int)rgcparams.periLength / (int)rgcparams.divFactors[2])) +
-                                 (((currY % rgcparams.divFactors[2] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength)) / (double)rgcparams.divFactors[2]))) +
-
-                           (int)((((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * 2 * (((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && !(((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength)))))) ? 1 : 0) * ((int)rgcparams.paraLength / (int)rgcparams.divFactors[1])) +
-                                 (((currY % rgcparams.divFactors[1] == 0) ? 1 : 0) * ((((currY >= ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength)) && (currY < ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))) || ((currY < ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength))) && (currY >= ((int)rgcparams.perspHeight - ((int)rgcparams.oz3up + (int)rgcparams.oz2up + (int)rgcparams.oz1up + periLength + paraLength))))) ? 1 : 0) * (((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[1]))) +
-
-                           (rgcparams.foveaWidth * (((currY >= (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)) && (currY < (rgcparams.perspHeight - (rgcparams.oz3up + rgcparams.oz2up + rgcparams.oz1up + periLength + paraLength)))) ? 1 : 0)) +
-                           (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX - (fovX + (fovWidthMidPost + paraLength + periLength + rgcparams.oz1side + rgcparams.oz2side + 1))) / rgcparams.divFactors[5]));
-                    // if(currY == 350 && currX == 3080) rgcInputsLeft[0][0] = rgcX;
-                }
-
-            }
-
-                // Checks if current index is in the top or bottom sections
-            else {
-                checkr = 6;
-                rgcX = (((currY % rgcparams.divFactors[5] == 0) ? 1 : 0) * ((currX) / rgcparams.divFactors[5]));
-
-            }
-
-            // Entering data
-
-            RGCdet[yMatch[currY]][rgcX].type = MIDGET;
-            RGCdet[yMatch[currY]][rgcX].detType = LUM;
-            RGCdet[yMatch[currY]][rgcX].cenRfSide = 30;
-            RGCdet[yMatch[currY]][rgcX].surRfWidth = 48;
-            if((rgcX + 1) % colFactor == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 1) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-                if(((rgcX + 1) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-            }
-            if((rgcX + 3) % colFactor == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].detType = COLOR;
-                if(((rgcX + 3) / colFactor) % 4 == 0) RGCdet[yMatch[currY]][rgcX].colID = G_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 1) RGCdet[yMatch[currY]][rgcX].colID = R_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 2) RGCdet[yMatch[currY]][rgcX].colID = Y_rgc;
-                if(((rgcX + 3) / colFactor) % 4 == 3) RGCdet[yMatch[currY]][rgcX].colID = B_rgc;
-            }
-            if(rgcX % 4 == 0 && yMatch[currY] % 2 == 0) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 48;
-            }
-            if((rgcX + 2) % 4 == 0 && yMatch[currY] % 2 == 1) {
-                RGCdet[yMatch[currY]][rgcX].type = PARASOL;
-                RGCdet[yMatch[currY]][rgcX].detType = LUM;
-                RGCdet[yMatch[currY]][rgcX].cenRfSide = 36;
-                RGCdet[yMatch[currY]][rgcX].surRfWidth = 48;
-            }
-
-            RGCdet[yMatch[currY]][rgcX].perspX = currX;
-            RGCdet[yMatch[currY]][rgcX].perspY = currY;
-            RGCdet[yMatch[currY]][rgcX].zone = OZ3;
-            RGCdet[yMatch[currY]][rgcX].perspID = (i * 4);
-        }
-    }
-
-
-
-
-    // ------------------------------------- X -------------------------------------
-
-
-
-}
-
 __global__
 void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLeft, uint8_t  *perspRight, float** leftInputs, float** rightInputs, int* xWidths, int* yMatch, RGC** RGCdet)
 {
@@ -996,7 +370,7 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLef
 
     //if()
 
-    if(RGCdet[posY][posX].type == MIDGET && (RGCdet[posY][posX].zone == OZ1 || RGCdet[posY][posX].zone == PERI)){
+    if(RGCdet[posY][posX].type == MIDGET){
         perspTest[RGCdet[posY][posX].perspID] =  (int)(255);
         perspTest[RGCdet[posY][posX].perspID + 1] = (int)(255);
         perspTest[RGCdet[posY][posX].perspID + 2] =  (int)(255);
@@ -1065,7 +439,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         printf("Couldn't init GLFW\n");
     }
 
-    window = glfwCreateWindow(perspWidth, perspHeight, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(1920, 1080, "Hello World", NULL, NULL);
     if (!window) {
         printf("Couldn't open window\n");
     }
@@ -1121,9 +495,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cout << "Resolution of Perspective is 4K" << endl; //4145280 - foveal point
         rgcparams.foveaWidth = 90;
         rgcparams.divFactors[0] = 1; // 32,400 - 129,600
-        rgcparams.paraLength = 90;
+        rgcparams.paraLength = 120;
         rgcparams.divFactors[1] = 2; // 45,000 - 90,000
-        rgcparams.periLength = 210;
+        rgcparams.periLength = 180;
         rgcparams.divFactors[2] = 3; // 34,000
         rgcparams.oz1up = 200;
         rgcparams.oz1side = 300;
@@ -1742,9 +1116,6 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, perspLeft, params);
         cudaDeviceSynchronize();
 
-        // Initializes RGC details array (RGCDetsDev)
-        //if(toIgnore == 0) initRGCdets<<<((perspHeight * perspWidth) + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, xWidthsDev, yMatchDev, RGCDetsDev);
-        //cudaDeviceSynchronize();
 
         // Forms RGC inputs
         formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspLeft, perspRight,
@@ -1776,57 +1147,57 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             }
             rgcDetsQ->push(RGCdetsPin);
         }
-//
-//
-//        rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
-//        rgcInputPin_r = (float**)malloc(rgcArrayHeight * sizeof(float*));
-//        for(int i = 0; i < rgcArrayHeight; i+=1){
-//            rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
-//            rgcInputPin_r[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+
+
+        rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
+        rgcInputPin_r = (float**)malloc(rgcArrayHeight * sizeof(float*));
+        for(int i = 0; i < rgcArrayHeight; i+=1){
+            rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+            rgcInputPin_r[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+        }
+
+        // Transfers RGC inputs back - required if doing neural computation on another GPU
+        cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+        cudaMemcpy(rgcInputsRight_h, rgcInputsRight_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+        for(int p = 0; p < 800; p+=1){
+            cudaMemcpy(rgcInputPin_l[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(rgcInputPin_r[p], rgcInputsRight_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+
+//        for(int j = 0; j < xWidthsHost[p]; j+=1){
+//            if(rgcInputPin_l[p][j] != j){
+//                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin_l[p][j] << endl;
+//            }
 //        }
-//
-//        // Transfers RGC inputs back - required if doing neural computation on another GPU
-//        cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-//        cudaMemcpy(rgcInputsRight_h, rgcInputsRight_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-//        for(int p = 0; p < 800; p+=1){
-//            cudaMemcpy(rgcInputPin_l[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-//            cudaMemcpy(rgcInputPin_r[p], rgcInputsRight_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-//
-////        for(int j = 0; j < xWidthsHost[p]; j+=1){
-////            if(rgcInputPin_l[p][j] != j){
-////                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin_l[p][j] << endl;
-////            }
-////        }
-//// ---------------------------------- Print RGC vals ---------------------------------
-////            cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
-////            for(int j = 0; j < xWidthsHost[p]; j+=1){
-////                if(true){
-////                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
-////                        printf("\033[1;31m%f\033[0m", rgcInputPin_l[p][j]);
-////                        cout << " - ";
-////                    } else {
-////                        cout << rgcInputPin_l[p][j] << " - ";
-////                    }
-////                }
-////            }
-////            cout << endl;
-//// ------------------------------------------------------------------------------------
-//        }
-//        {
-//            lock_guard<mutex> lock(rgcMut);
-//            rgcQueue_l->push(rgcInputPin_l);
-//            rgcQueue_r->push(rgcInputPin_r);
-//            *frameNum = *frameNum + 1;
-//        }
-//        // cout << "Current Size : " << rgcQueue_l->size() << std::endl;
-//        rgcCond.notify_all();
-//
+// ---------------------------------- Print RGC vals ---------------------------------
+//            cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+//            for(int j = 0; j < xWidthsHost[p]; j+=1){
+//                if(true){
+//                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
+//                        printf("\033[1;31m%f\033[0m", rgcInputPin_l[p][j]);
+//                        cout << " - ";
+//                    } else {
+//                        cout << rgcInputPin_l[p][j] << " - ";
+//                    }
+//                }
+//            }
+//            cout << endl;
+// ------------------------------------------------------------------------------------
+        }
+        {
+            lock_guard<mutex> lock(rgcMut);
+            rgcQueue_l->push(rgcInputPin_l);
+            rgcQueue_r->push(rgcInputPin_r);
+            *frameNum = *frameNum + 1;
+        }
+        // cout << "Current Size : " << rgcQueue_l->size() << std::endl;
+        rgcCond.notify_all();
+
 //        auto stop = std::chrono::high_resolution_clock::now();
 //        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
 //        cout << "Net duration of visual pass : " << duration << endl;
-//
-//
-//
+
+
+
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
 
@@ -1835,9 +1206,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glBegin(GL_QUADS);
         glTexCoord2d(0,0); glVertex2i(0, 0);
-        glTexCoord2d(1,0); glVertex2i(0 + perspWidth, 0);
-        glTexCoord2d(1,1); glVertex2i(0 + perspWidth, 0 + perspHeight);
-        glTexCoord2d(0,1); glVertex2i(0, 0 + perspHeight);
+        glTexCoord2d(1,0); glVertex2i(0 + 1920, 0);
+        glTexCoord2d(1,1); glVertex2i(0 + 1920, 0 + 1080);
+        glTexCoord2d(0,1); glVertex2i(0, 0 + 1080);
         glEnd();
         glDisable(GL_TEXTURE_2D);
 
