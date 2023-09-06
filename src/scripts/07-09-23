@@ -522,8 +522,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
     int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0, rgcInd = 0,
-            fovy = ((perspHeight / 2) - 1), fovx = ((perspWidth / 2) - 1), diffX = 0, diffY = 0, divR = 0, mostProb = 0;
-    double SOL = 0, SOR = 0, eSOL = 0;
+            fovy = ((perspHeight / 2) - 1), fovx = ((perspWidth / 2) - 1), diffX = 0, diffY = 0, divR = 0, mostProb = 0, ElXGr = 0, ElYGr = 0, ElXLs = 0, ElYLs = 0;
+    double SOL = 0, SOR = 0, eSOL = 0, SOLGr = 0, SOLLs = 0;
     random_device rd;     // Only used once to initialise (seed) engine
     mt19937 rng(rd());    // Random-number engine used (Mersenne-Twister in this case)
     uniform_real_distribution<float> uni(0,1); // Guaranteed unbiased
@@ -981,10 +981,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 angle = atan2(diffY, (j - fovx)) * (180 / M_PI);
                 angle = angle > 0 ? angle : 360 - abs(angle);
+                ElXLs = ((-1 * tillOZ2 * OZ2ellipse) / (sqrt(pow(tillOZ2, 2) + (pow(OZ2ellipse, 2) * pow(tan(angle), 2)))));
+                ElYLs = (((angle <= 180 ? 1 : -1) * tillOZ2 * OZ2ellipse) / (sqrt(pow(OZ2ellipse, 2) + (pow(tillOZ2, 2) * pow(tan(angle), 2)))));
+                ElXGr = ((-1 * tillOZ3 * OZ3ellipse) / (sqrt(pow(tillOZ3, 2) + (pow(OZ3ellipse, 2) * pow(tan(angle), 2)))));
+                ElYGr = (((angle <= 180 ? 1 : -1) * tillOZ3 * OZ3ellipse) / (sqrt(pow(OZ3ellipse, 2) + (pow(tillOZ3, 2) * pow(tan(angle), 2)))));
+                SOLGr = pow(ElXGr, 2) + pow(ElYGr, 2);
+                SOLLs = pow(ElXLs, 2) + pow(ElYLs, 2);
                 // First, we find out just how far between the two bands the current radius is
-                radProg = ((double)((SOL) - (1 / ((pow(cos(angle), 2) / pow(OZ2ellipse, 2)) + (pow(sin(angle), 2) / pow(tillOZ2, 2)))))
-                        / (double)(((1 / (((pow(cos(angle), 2) / pow(OZ3ellipse, 2)) + (pow(sin(angle), 2) / pow(tillOZ3, 2)))))) -
-                        (1 / (((pow(cos(angle), 2) / pow(OZ2ellipse, 2)) + (pow(sin(angle), 2) / pow(tillOZ2, 2)))))));
+                radProg = ((double)((SOL) - SOLLs) / (double)(SOLGr - SOLLs));
 
 
 
@@ -1009,7 +1013,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                         // if currRand is greater
                     else divR = rgcparams.divFactors[4] + divSector + 1;
                 }
-                cout << "x : " << j - fovx << " || y :" << diffY << " || angle : " << angle << " || divL : " << divLength <<  " || sector : " << divSector << " || radProg : " << radProg << " || divR : " << divR <<
+                cout << "SOL : " << SOL << " || SOLGr : " << SOLGr << " || SolLs : " << SOLLs << " || ElXLs" << ElXLs << " || ElYLs" << ElYLs << " || x : " << j - fovx << " || y :" << diffY << " || angle : " << angle << " || divL : " << divLength <<  " || sector : " << divSector << " || radProg : " << radProg << " || divR : " << divR <<
                 " || radFirst : " << (double)(SOL - (1 / ((pow(cos(angle), 2) / pow(OZ2ellipse, 2)) + (pow(sin(angle), 2) / pow(tillOZ2, 2))))) <<
                 " || radSec : " << (double)(((1 / (((pow(cos(angle), 2) / pow(OZ3ellipse, 2)) + (pow(sin(angle), 2) / pow(tillOZ3, 2)))))) -
                                             (1 / (((pow(cos(angle), 2) / pow(OZ2ellipse, 2)) + (pow(sin(angle), 2) / pow(tillOZ2, 2)))))) << endl ;
