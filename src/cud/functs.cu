@@ -18,6 +18,7 @@
 #include <matplot/matplot.h>
 #include "rgc.cuh"
 #include <thread>
+#include <random>
 
 using namespace matplot;
 using namespace std;
@@ -27,11 +28,10 @@ FRUSTUM frustum;
 RGCPARAMS rgcparams;
 
 __global__
-void saxpy(int n, float a, float *x, float *y)
+void saxpy(RGC** RGCdet)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (i < (n -1)) x[i] = x[i+1] ;
 
 
 }
@@ -134,17 +134,34 @@ void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS devicePara
     int x = i % deviceParams.perspWidth;
     int y = i / deviceParams.perspWidth;
 
-    if(true){
-        perspTest[(i * 4)] = perspLeft[(i * 4)];
-        perspTest[(i * 4) + 1] = perspLeft[(i * 4) + 1];
-        perspTest[(i * 4) + 2] = perspLeft[(i * 4) + 2];
-        perspTest[(i * 4) + 3] = perspLeft[(i * 4) + 3];
-    } else {
-        perspTest[(i * 4)] = 0;
-        perspTest[(i * 4) + 1] = 0;
-        perspTest[(i * 4) + 2] = 0;
-        perspTest[(i * 4) + 3] = 0;
-    }
+//    if(true){
+//        perspTest[(i * 4)] = perspLeft[(i * 4)];
+//        perspTest[(i * 4) + 1] = perspLeft[(i * 4) + 1];
+//        perspTest[(i * 4) + 2] = perspLeft[(i * 4) + 2];
+//        perspTest[(i * 4) + 3] = perspLeft[(i * 4) + 3];
+//    } else {
+//        perspTest[(i * 4)] = 0;
+//        perspTest[(i * 4) + 1] = 0;
+//        perspTest[(i * 4) + 2] = 0;
+//        perspTest[(i * 4) + 3] = 0;
+//    }
+
+    perspTest[(i * 4)] = 0;
+    perspTest[(i * 4) + 1] = 0;
+    perspTest[(i * 4) + 2] = 0;
+    perspTest[(i * 4) + 3] = 0;
+
+//    if(((x / 20) % 2 == 0) && ((y / 20) % 2 == 0)){
+//        perspLeft[(i * 4)] = 0;
+//        perspLeft[(i * 4) + 1] = 0;
+//        perspLeft[(i * 4) + 2] = 0;
+//        perspLeft[(i * 4) + 3] = 0;
+//    } else {
+//        perspLeft[(i * 4)] = 255;
+//        perspLeft[(i * 4) + 1] = 255;
+//        perspLeft[(i * 4) + 2] = 255;
+//        perspLeft[(i * 4) + 3] = 255;
+//    }
 }
 
 __global__
@@ -251,6 +268,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
     int fovX = (rgcparams.perspWidth / 2) - 1;
     int currY = i/rgcparams.perspWidth;
     int currX = i - (currY * rgcparams.perspWidth);
+    int Xc = abs(fovX - currX);
+    int Yc = abs(fovX - currX);
     int index = 0;
     int rgcX;
     int colFactor = 4;
@@ -259,6 +278,8 @@ void initRGCdets(RGCPARAMS rgcparams, int* xWidths, int* yMatch, RGC** RGCdet)
     int fovWidth = rgcparams.foveaWidth; int fovWidthMidPre = ((fovWidth / 2) - 1); int fovWidthMidPost = (fovWidth / 2);
     int paraLength = rgcparams.paraLength;
     int periLength = rgcparams.periLength;
+
+
 
 
     // ----------------------- Foveal Processing -----------------------
@@ -975,11 +996,11 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLef
 
     //if()
 
-    if(RGCdet[posY][posX].type == MIDGET){
-        perspTest[RGCdet[posY][posX].perspID] =  (int)(0);
-        perspTest[RGCdet[posY][posX].perspID + 1] = (int)(0);
-        perspTest[RGCdet[posY][posX].perspID + 2] =  (int)(0);
-        perspTest[RGCdet[posY][posX].perspID + 3] = (int)(0);
+    if(RGCdet[posY][posX].type == MIDGET && (RGCdet[posY][posX].zone == OZ1 || RGCdet[posY][posX].zone == PERI)){
+        perspTest[RGCdet[posY][posX].perspID] =  (int)(255);
+        perspTest[RGCdet[posY][posX].perspID + 1] = (int)(255);
+        perspTest[RGCdet[posY][posX].perspID + 2] =  (int)(255);
+        perspTest[RGCdet[posY][posX].perspID + 3] = (int)(255);
     }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
@@ -1044,7 +1065,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         printf("Couldn't init GLFW\n");
     }
 
-    window = glfwCreateWindow(1920, 1080, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(perspWidth, perspHeight, "Hello World", NULL, NULL);
     if (!window) {
         printf("Couldn't open window\n");
     }
@@ -1098,70 +1119,426 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     }
     else if (perspWidth > 3000 && perspWidth < 5000){
         cout << "Resolution of Perspective is 4K" << endl; //4145280 - foveal point
-        rgcparams.foveaWidth = 180;
+        rgcparams.foveaWidth = 90;
         rgcparams.divFactors[0] = 1; // 32,400 - 129,600
         rgcparams.paraLength = 90;
         rgcparams.divFactors[1] = 2; // 45,000 - 90,000
         rgcparams.periLength = 210;
         rgcparams.divFactors[2] = 3; // 34,000
-        rgcparams.oz1up = 120;
-        rgcparams.oz1side = 255;
+        rgcparams.oz1up = 200;
+        rgcparams.oz1side = 300;
         rgcparams.divFactors[3] = 4; // 60,000 122400-corners 336600-sides 158400-tops
-        rgcparams.oz2up = 250;
+        rgcparams.oz2up = 300;
         rgcparams.oz2side = 510;
         rgcparams.divFactors[4] = 5; // 81,000
-        rgcparams.oz3up = 320;
+        rgcparams.oz3up = 450;
         rgcparams.oz3side = 765;
         rgcparams.divFactors[5] = 7; // 83,686
     }
 
     rgcparams.perspHeight = perspHeight;
     rgcparams.perspWidth = perspWidth;
+    int tillPara = rgcparams.foveaWidth + rgcparams.paraLength,
+            tillPeri = tillPara + rgcparams.periLength,
+            tillOZ1 = tillPeri + rgcparams.oz1up,
+            tillOZ2 = tillOZ1 + rgcparams.oz2up,
+            tillOZ3 = tillOZ2 + rgcparams.oz3up;
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
-    int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0;
+    int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0, rgcInd = 0,
+            fovy = ((perspHeight / 2) - 1), fovx = ((perspWidth / 2) - 1), diffX = 0, diffY = 0, divR = 0, mostProb = 0;
+    double SOL = 0, SOR = 0;
+    random_device rd;     // Only used once to initialise (seed) engine
+    mt19937 rng(rd());    // Random-number engine used (Mersenne-Twister in this case)
+    uniform_real_distribution<float> uni(0,1); // Guaranteed unbiased
+    float rnd = uni(rng),
+    // The random number that's reset throughout each relevant scope
+    currRand = 0,
+    // How much the radius has progressed between two zones
+    radProg = 0,
+    // The individual lengths of areas for each of the divFactors under the probability graph
+    divLength = 0,
+    // Which division currRand falls into
+    divSector = 0;
+    RGC** tmpRGCdets = (RGC**) malloc(perspHeight * sizeof(RGC*));
     yMatchHost = (int *)malloc(perspHeight * sizeof(int));
     xWidthsHost = (int *)malloc(perspHeight * sizeof(int));
     //------------------------------------------------------------------
     for(int i = 0; i < perspHeight; i+=1){
-        tmpxSum =
-                // ------------------------------------ Side series ----------------------------------
+        tmpxSum = 0;
+        for(int j = 0; j < perspWidth; j+=1){
+            diffX = fovx - j; diffY = fovy - i;
+            currRand = uni(rng);
+            SOL = pow(diffX, 2) + pow(diffY, 2);
 
-                // - OZ3
-                (int)(((((i % rgcparams.divFactors[5] == 0) && (i >= 0 && i < perspHeight)) ? 1 : 0) * (2 * ((double)rgcparams.oz3side / (double)rgcparams.divFactors[5]))) +
+            // ---------------------- FOVEA ---------------------------
+            if(SOL < pow(rgcparams.foveaWidth, 2) && (i % rgcparams.divFactors[0] == 0) && (j % rgcparams.divFactors[0] == 0)){
+                if(tmpxSum == 0){
+                    rgcArrayHeight+=1;
+                    tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                }
+                tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                currRand = uni(rng);
+                if(currRand > 0.95){
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 6;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 8;
+                } else {
+                    currRand = uni(rng);
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 2;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 2;
+                    currRand = uni(rng);
+                    if(currRand < 0.25) {
+                        currRand = uni(rng);
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
+                        if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                        if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                        if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                        if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                    }
+                }
+                tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
+                tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
+                tmpRGCdets[rgcArrayHeight][tmpxSum].zone = FOV;
+                tmpxSum+=1;
+            }
+            // ----------------------- X --------------------------------
 
-                      ((((i % rgcparams.divFactors[5] == 0) && ((i >= 0 && i < (double)rgcparams.oz3up) || (i >= (perspHeight - (double)rgcparams.oz3up) && i < perspHeight))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side) + (2 * (double)rgcparams.oz2side)) / (double)rgcparams.divFactors[5])))) +
+            // ---------------------- PARAFOVEAL REGION --------------------
 
-                // - OZ2
-                (int)(((((i % rgcparams.divFactors[4] == 0) && (i >= (double)rgcparams.oz3up && i < (perspHeight - (double)rgcparams.oz3up))) ? 1 : 0) * (2 * ((double)rgcparams.oz2side / (double)rgcparams.divFactors[4]))) +
+            if(SOL < pow(tillPara, 2) && SOL >= pow(rgcparams.foveaWidth, 2)){
 
-                      ((((i % rgcparams.divFactors[4] == 0) && ((i >= (double)rgcparams.oz3up && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)) && i < (perspHeight - (double)rgcparams.oz3up)))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength) + (2 * (double)rgcparams.oz1side)) / (double)rgcparams.divFactors[4])))) +
+                // First, we find out just how far between the two bands the current radius is
+                radProg = (((double)(SOL - pow(rgcparams.foveaWidth, 2)) / (double)(pow(tillPara, 2) - pow(rgcparams.foveaWidth, 2))));
 
-                // - OZ1
-                (int)(((((i % rgcparams.divFactors[3] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up)))) ? 1 : 0) * (2 * ((double)rgcparams.oz1side / (double)rgcparams.divFactors[3]))) +
+                // Then we calculate the length of the subdivisions within the band
+                divLength = 1 / (float)((rgcparams.divFactors[1] - rgcparams.divFactors[0]));
+                mostProb = (int)(radProg * (float)((rgcparams.divFactors[1] - rgcparams.divFactors[0]) + 1));
 
-                      ((((i % rgcparams.divFactors[3] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength) + (2 * (double)rgcparams.periLength)) / (double)rgcparams.divFactors[3])))) +
+                // If it's the last band
+                if(radProg > 1 - divLength) {
+                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[1];
+                    else divR = rgcparams.divFactors[1] - 1;
+                }
+                    // all other bands
+                else {
 
-                // - Peri
-                (int)(((((i % rgcparams.divFactors[2] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up)))) ? 1 : 0) * (2 * ((double)rgcparams.periLength / (double)rgcparams.divFactors[2]))) +
+                    // Finding out which sector of the band radius has progressed till
+                    divSector = (int)(radProg / divLength);
 
-                      ((((i % rgcparams.divFactors[2] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth + (2 * (double)rgcparams.paraLength)) / (double)rgcparams.divFactors[2])))) +
+                    // If currRand is lesser than the radius's reach in the sector
+                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[0] + divSector;
 
-                // - Para
-                (int)(((((i % rgcparams.divFactors[1] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength)))) ? 1 : 0) * (2 * ((double)rgcparams.paraLength / (double)rgcparams.divFactors[1]))) +
+                        // if currRand is greater
+                    else divR = rgcparams.divFactors[0] + divSector + 1;
+                }
 
-                      ((((i % rgcparams.divFactors[1] == 0) && ((i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength) && i < ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) || (i >= (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength))))) ? 1 : 0) * ((((double)rgcparams.foveaWidth) / (double)rgcparams.divFactors[1])))) +
+                if(i % divR == 0 && j % divR == 0){
+                    if(tmpxSum == 0){
+                        rgcArrayHeight+=1;
+                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                }
+                tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.95){
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 8;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 10;
+                } else {
+                    currRand = uni(rng);
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 3;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                    currRand = uni(rng);
+                    if(currRand < 0.25) {
+                        currRand = uni(rng);
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
+                        if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                        if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                        if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                        if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                    }
+                }
+                tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
+                tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
+                tmpRGCdets[rgcArrayHeight][tmpxSum].zone = PARA;
+                tmpxSum+=1;
+                }
+            }
+            // ----------------------- X --------------------------
 
-                // - Fovea
-                ((((i % rgcparams.divFactors[0] == 0) && (i >= ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength) && i < (perspHeight - ((double)rgcparams.oz3up + (double)rgcparams.oz2up + (double)rgcparams.oz1up + (double)rgcparams.periLength + (double)rgcparams.paraLength)))) ? 1 : 0) * (double)rgcparams.foveaWidth);
+            // ---------------------- PERIFOVEAL REGION --------------------
+
+            if(SOL < pow(tillPeri, 2) && SOL >= pow(tillPara, 2)){
+
+                // First, we find out just how far between the two bands the current radius is
+                radProg = (((double)(SOL - pow(tillPara, 2)) / (double)(pow(tillPeri, 2) - pow(tillPara, 2))));
+
+                // Then we calculate the length of the subdivisions within the band
+                divLength = 1 / (float)((rgcparams.divFactors[2] - rgcparams.divFactors[1]));
+
+                // If it's the last band
+                if(radProg > 1 - divLength) {
+                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[2];
+                    else divR = rgcparams.divFactors[2] - 1;
+                }
+                    // all other bands
+                else {
+
+                    // Finding out which sector of the band radius has progressed till
+                    divSector = (int)(radProg / divLength);
+
+                    // If currRand is lesser than the radius's reach in the sector
+                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[1] + divSector;
+
+                        // if currRand is greater
+                    else divR = rgcparams.divFactors[1] + divSector + 1;
+                }
+                if(i % divR == 0 && j % divR == 0){
+                    if(tmpxSum == 0){
+                        rgcArrayHeight+=1;
+                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.9){
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 14;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 2;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = PERI;
+                    tmpxSum+=1;
+                }
+
+            }
+            // ----------------------- X --------------------------
+
+            // ---------------------- OZ1 REGION --------------------
+
+            if(SOL < pow(tillOZ1, 2) && SOL >= pow(tillPeri, 2)){
+
+                // First, we find out just how far between the two bands the current radius is
+                radProg = (((double)(SOL - pow(tillPeri, 2)) / (double)(pow(tillOZ1, 2) - pow(tillPeri, 2))));
+
+                // Then we calculate the length of the subdivisions within the band
+                divLength = 1 / (float)((rgcparams.divFactors[3] - rgcparams.divFactors[2]));
+
+
+                // If it's the last band
+                if(radProg > 1 - divLength) {
+                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[3];
+                    else divR = rgcparams.divFactors[3] - 1;
+                }
+                    // all other bands
+                else {
+
+                    // Finding out which sector of the band radius has progressed till
+                    divSector = (int)(radProg / divLength);
+
+                    // If currRand is lesser than the radius's reach in the sector
+                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[2] + divSector;
+
+                        // if currRand is greater
+                    else divR = rgcparams.divFactors[2] + divSector + 1;
+                }
+
+                if(i % divR == 0 && j % divR == 0){
+                    if(tmpxSum == 0){
+                        rgcArrayHeight+=1;
+                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.8){
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 15;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 18;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 4;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 5;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ1;
+                    tmpxSum+=1;
+                }
+
+            }
+            // ----------------------- X --------------------------
+
+            // ---------------------- OZ2 REGION --------------------
+
+            if(SOL < pow(tillOZ2, 2) && SOL >= pow(tillOZ1, 2)){
+
+                // First, we find out just how far between the two bands the current radius is
+                radProg = (((double)(SOL - pow(tillOZ1, 2)) / (double)(pow(tillOZ2, 2) - pow(tillOZ1, 2))));
+
+                // Then we calculate the length of the subdivisions within the band
+                divLength = 1 / (float)((rgcparams.divFactors[4] - rgcparams.divFactors[3]));
+
+                // If it's the last band
+                if(radProg > 1 - divLength) {
+                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[4];
+                    else divR = rgcparams.divFactors[4] - 1;
+                }
+                    // all other bands
+                else {
+
+                    // Finding out which sector of the band radius has progressed till
+                    divSector = (int)(radProg / divLength);
+
+                    // If currRand is lesser than the radius's reach in the sector
+                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[3] + divSector;
+
+                        // if currRand is greater
+                    else divR = rgcparams.divFactors[3] + divSector + 1;
+                }
+                if(i % divR == 0 && j % divR == 0){
+                    if(tmpxSum == 0){
+                        rgcArrayHeight+=1;
+                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.7){
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 24;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ2;
+                    tmpxSum+=1;
+                }
+
+            }
+            // ----------------------- X --------------------------
+
+            // ---------------------- OZ3 REGION --------------------
+
+            if(SOL < pow(tillOZ3, 2) && SOL >= pow(tillOZ2, 2)){
+
+                // First, we find out just how far between the two bands the current radius is
+                radProg = (((double)(SOL - pow(tillOZ2, 2)) / (double)(pow(tillOZ3, 2) - pow(tillOZ2, 2))));
+
+                // Then we calculate the length of the subdivisions within the band
+                divLength = 1 / (float)((rgcparams.divFactors[5] - rgcparams.divFactors[4]));
+
+                // If it's the last band
+                if(radProg > 1 - divLength) {
+                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[5];
+                    else divR = rgcparams.divFactors[5] - 1;
+                }
+                    // all other bands
+                else {
+
+                    // Finding out which sector of the band radius has progressed till
+                    divSector = (int)(radProg / divLength);
+
+                    // If currRand is lesser than the radius's reach in the sector
+                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[4] + divSector;
+
+                        // if currRand is greater
+                    else divR = rgcparams.divFactors[4] + divSector + 1;
+                }
+                if(i % divR == 0 && j % divR == 0){
+                    if(tmpxSum == 0){
+                        rgcArrayHeight+=1;
+                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.6){
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 36;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 20;
+                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ3;
+                    tmpxSum+=1;
+                }
+            }
+            // ----------------------- X --------------------------
+        }
+
 
         if(tmpxSum != 0){
-            rgcArrayHeight+=1;
             xWidthsHost[rgcArrayHeight] = tmpxSum;
             RGCcount += tmpxSum;
         }
         yMatchHost[i] = rgcArrayHeight;
     }
     rgcArrayHeight += 1;
+
+    cout << "Total RGC count :" << RGCcount << endl;
 
     v2rp->xWid = xWidthsHost;
     v2rp->yMat = yMatchHost;
@@ -1170,8 +1547,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     *v2rp->perspH = perspHeight;
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
-    RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev;
+    RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev, **detsArray_h, **detsArray_d;
     float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d, **rgcInputPin_l, **rgcInputPin_r;
+    detsArray_h = (RGC**)malloc(rgcArrayHeight * sizeof(RGC*));
     rgcInputsLeft_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcInputsRight_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
@@ -1183,7 +1561,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     cudaMalloc(&yMatchDev, perspHeight * sizeof(int));
 
     for(int i = 0; i < rgcArrayHeight; i+=1){
+
         cudaMalloc((void**) &RGCdets[i], ((xWidthsHost[i]*sizeof(RGC))));
+        cudaMemcpy(RGCdets[i], tmpRGCdets[i], xWidthsHost[i] * sizeof(RGC), cudaMemcpyHostToDevice);
         RGCdetsPin[i] = (RGC*) malloc(xWidthsHost[i] * sizeof(RGC));
         rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcInputsLeft_h[i], xWidthsHost[i] * sizeof(float));
@@ -1193,9 +1573,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     cudaMemcpy(RGCDetsDev,RGCdets,rgcArrayHeight * sizeof(RGC*),cudaMemcpyHostToDevice);
     cudaMemcpy(rgcInputsLeft_d, rgcInputsLeft_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     cudaMemcpy(rgcInputsRight_d, rgcInputsRight_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
-    // -------------------------------------------------------------------
-
-
+//    // -------------------------------------------------------------------
+//
+//
     // ---------------- Init - Frame stuff for world data capture -----------------------
     uint8_t* frame_data_left, *frame_data_right;
     // Colour printing
@@ -1351,7 +1731,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
         // Changes the ffmpeg YUV frames to RGB WorldFrames
         ffmpeg2World <<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>> (worldLeft, worldRight, ffmpegLY, ffmpegRY,
-                                                                            ffmpegLU, ffmpegRU, ffmpegLV, ffmpegRV, params);
+                                                                           ffmpegLU, ffmpegRU, ffmpegLV, ffmpegRV, params);
         cudaDeviceSynchronize();
 
         // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
@@ -1363,8 +1743,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cudaDeviceSynchronize();
 
         // Initializes RGC details array (RGCDetsDev)
-        if(toIgnore == 0) initRGCdets<<<((perspHeight * perspWidth) + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, xWidthsDev, yMatchDev, RGCDetsDev);
-        cudaDeviceSynchronize();
+        //if(toIgnore == 0) initRGCdets<<<((perspHeight * perspWidth) + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, xWidthsDev, yMatchDev, RGCDetsDev);
+        //cudaDeviceSynchronize();
 
         // Forms RGC inputs
         formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspLeft, perspRight,
@@ -1377,11 +1757,6 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cudaSetDevice(1);
         cudaDeviceSynchronize();
 
-        // Stops clock
-
-
-
-
 
         // Transfers computed values back to host
         cudaSetDevice(0);
@@ -1390,9 +1765,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
         //else cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
-
-
-
+//
+//
+//
         // Transfers RGC details array back after initialisation
         if(toIgnore == 0){
             cudaMemcpy(RGCdets, RGCDetsDev, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
@@ -1401,57 +1776,57 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             }
             rgcDetsQ->push(RGCdetsPin);
         }
-
-
-        rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
-        rgcInputPin_r = (float**)malloc(rgcArrayHeight * sizeof(float*));
-        for(int i = 0; i < rgcArrayHeight; i+=1){
-            rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
-            rgcInputPin_r[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
-        }
-
-        // Transfers RGC inputs back - required if doing neural computation on another GPU
-        cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-        cudaMemcpy(rgcInputsRight_h, rgcInputsRight_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
-        for(int p = 0; p < 800; p+=1){
-            cudaMemcpy(rgcInputPin_l[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-            cudaMemcpy(rgcInputPin_r[p], rgcInputsRight_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
-
-//        for(int j = 0; j < xWidthsHost[p]; j+=1){
-//            if(rgcInputPin_l[p][j] != j){
-//                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin_l[p][j] << endl;
-//            }
+//
+//
+//        rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
+//        rgcInputPin_r = (float**)malloc(rgcArrayHeight * sizeof(float*));
+//        for(int i = 0; i < rgcArrayHeight; i+=1){
+//            rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
+//            rgcInputPin_r[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
 //        }
-// ---------------------------------- Print RGC vals ---------------------------------
-//            cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
-//            for(int j = 0; j < xWidthsHost[p]; j+=1){
-//                if(true){
-//                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
-//                        printf("\033[1;31m%f\033[0m", rgcInputPin_l[p][j]);
-//                        cout << " - ";
-//                    } else {
-//                        cout << rgcInputPin_l[p][j] << " - ";
-//                    }
-//                }
-//            }
-//            cout << endl;
-// ------------------------------------------------------------------------------------
-        }
-        {
-            lock_guard<mutex> lock(rgcMut);
-            rgcQueue_l->push(rgcInputPin_l);
-            rgcQueue_r->push(rgcInputPin_r);
-            *frameNum = *frameNum + 1;
-        }
-        // cout << "Current Size : " << rgcQueue_l->size() << std::endl;
-        rgcCond.notify_all();
-
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-        cout << "Net duration of visual pass : " << duration << endl;
-
-
-
+//
+//        // Transfers RGC inputs back - required if doing neural computation on another GPU
+//        cudaMemcpy(rgcInputsLeft_h, rgcInputsLeft_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+//        cudaMemcpy(rgcInputsRight_h, rgcInputsRight_d, rgcArrayHeight * sizeof(float*), cudaMemcpyDeviceToHost);
+//        for(int p = 0; p < 800; p+=1){
+//            cudaMemcpy(rgcInputPin_l[p], rgcInputsLeft_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+//            cudaMemcpy(rgcInputPin_r[p], rgcInputsRight_h[p], xWidthsHost[p] * sizeof(float), cudaMemcpyDeviceToHost);
+//
+////        for(int j = 0; j < xWidthsHost[p]; j+=1){
+////            if(rgcInputPin_l[p][j] != j){
+////                cout << "Error at : " << p << " Index of Error is : " << j  << " val : " << rgcInputPin_l[p][j] << endl;
+////            }
+////        }
+//// ---------------------------------- Print RGC vals ---------------------------------
+////            cout << "i : " << p << " || Length : " << xWidthsHost[p] << " || ";
+////            for(int j = 0; j < xWidthsHost[p]; j+=1){
+////                if(true){
+////                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
+////                        printf("\033[1;31m%f\033[0m", rgcInputPin_l[p][j]);
+////                        cout << " - ";
+////                    } else {
+////                        cout << rgcInputPin_l[p][j] << " - ";
+////                    }
+////                }
+////            }
+////            cout << endl;
+//// ------------------------------------------------------------------------------------
+//        }
+//        {
+//            lock_guard<mutex> lock(rgcMut);
+//            rgcQueue_l->push(rgcInputPin_l);
+//            rgcQueue_r->push(rgcInputPin_r);
+//            *frameNum = *frameNum + 1;
+//        }
+//        // cout << "Current Size : " << rgcQueue_l->size() << std::endl;
+//        rgcCond.notify_all();
+//
+//        auto stop = std::chrono::high_resolution_clock::now();
+//        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+//        cout << "Net duration of visual pass : " << duration << endl;
+//
+//
+//
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, perspWidth, perspHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, perspHost);
 
@@ -1460,9 +1835,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glBegin(GL_QUADS);
         glTexCoord2d(0,0); glVertex2i(0, 0);
-        glTexCoord2d(1,0); glVertex2i(0 + 1920, 0);
-        glTexCoord2d(1,1); glVertex2i(0 + 1920, 0 + 1080);
-        glTexCoord2d(0,1); glVertex2i(0, 0 + 1080);
+        glTexCoord2d(1,0); glVertex2i(0 + perspWidth, 0);
+        glTexCoord2d(1,1); glVertex2i(0 + perspWidth, 0 + perspHeight);
+        glTexCoord2d(0,1); glVertex2i(0, 0 + perspHeight);
         glEnd();
         glDisable(GL_TEXTURE_2D);
 
