@@ -1424,12 +1424,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             xWidthsHost[rgcArrayHeight] = tmpxSum;
             RGCcount += tmpxSum;
             for(int p = 0; p < (tmpxSum % 2 == 0 ? (tmpxSum / 2) : ((tmpxSum + 1) / 2)); p+= 1){
-                if(p == 0 && rgcArrayHeight == 8){
-                    cout << endl;
-                    cout << "length : " << tmpxSum << endl;
-                }
                 tmpRGCdets_r[rgcArrayHeight][p].perspX = (perspWidth - 1) - tmpRGCdets_r[rgcArrayHeight][p].perspX;
-                tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p].perspX = (perspWidth - 1) - tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p].perspX;
+                if(!(tmpxSum % 2 != 0 && p == ((tmpxSum + 1) / 2) - 1)) tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p].perspX = (perspWidth - 1) - tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p].perspX;
                 swapVar = tmpRGCdets_r[rgcArrayHeight][p];
                 tmpRGCdets_r[rgcArrayHeight][p] = tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p];
                 tmpRGCdets_r[rgcArrayHeight][(xWidthsHost[rgcArrayHeight] - 1) - p] = swapVar;
@@ -1437,6 +1433,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             for(int p = 0; p < tmpxSum; p+= 1){
                 tmpRGCdets_r[rgcArrayHeight][p].perspID = ((tmpRGCdets_r[rgcArrayHeight][p].perspY * perspWidth * 4) + (tmpRGCdets_r[rgcArrayHeight][p].perspX * 4));
             }
+
         }
         yMatchHost[i] = rgcArrayHeight;
     }
@@ -1683,9 +1680,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 //
         // Transfers RGC details array back after initialisation
         if(toIgnore == 0){
-            cudaMemcpy(RGCdets_r, RGCDetsDev_r, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
+            cudaMemcpy(RGCdets_l, RGCDetsDev_l, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
             for(int p = 0; p < rgcArrayHeight; p+=1){
-                cudaMemcpy(RGCdetsPin[p], RGCdets_r[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
+                cudaMemcpy(RGCdetsPin[p], RGCdets_l[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
             }
             rgcDetsQ->push(RGCdetsPin);
         }
