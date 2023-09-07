@@ -357,14 +357,13 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
     // Calculating center averages
     cenValL = cenSumL / cenIdeal;
 
-    //if()
-
-    if(RGCdet_l[posY][posX].type == MIDGET){
-        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255);
-        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255);
-        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255);
-        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255);
-    }
+//
+//    if(RGCdet_l[posY][posX].type == MIDGET){
+//        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255);
+//        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255);
+//        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255);
+//        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255);
+//    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     leftInputs[posY][posX] = RGCdet_l[posY][posX].perspX;
@@ -496,18 +495,16 @@ void formRGCcurrents_r(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspR
     // Calculating center averages
     cenValR = cenSumR / cenIdeal;
 
-    //if()
 
-//    if(RGCdet_r[posY][posX].type == MIDGET){
-//        perspTest[RGCdet_r[posY][posX].perspID] =  (int)(255);
-//        perspTest[RGCdet_r[posY][posX].perspID + 1] = (int)(255);
-//        perspTest[RGCdet_r[posY][posX].perspID + 2] =  (int)(255);
-//        perspTest[RGCdet_r[posY][posX].perspID + 3] = (int)(255);
-//    }
+    if(RGCdet_r[posY][posX].type == MIDGET){
+        perspTest[RGCdet_r[posY][posX].perspID] =  (int)(255);
+        perspTest[RGCdet_r[posY][posX].perspID + 1] = (int)(255);
+        perspTest[RGCdet_r[posY][posX].perspID + 2] =  (int)(255);
+        perspTest[RGCdet_r[posY][posX].perspID + 3] = (int)(255);
+    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     rightInputs[posY][posX] = RGCdet_r[posY][posX].perspX;
-
 }
 
 __global__
@@ -536,6 +533,8 @@ void ffmpeg2World(::uint8_t  *worldLeft, ::uint8_t  *worldRight, ::uint8_t  *ffl
     worldRight[u + 3] = ffry[p_y];
 
 }
+
+
 
 void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, queue<RGC**> *rgcDetsQ, vid2rgcParams *v2rp, mutex &rgcMut, condition_variable &rgcCond){
 
@@ -629,10 +628,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         rgcparams.oz1up = 200;
         rgcparams.oz1side = 300;
         rgcparams.divFactors[3] = 4; // 60,000 122400-corners 336600-sides 158400-tops
-        rgcparams.oz2up = 200;
+        rgcparams.oz2up = 300;
         rgcparams.oz2side = 510;
         rgcparams.divFactors[4] = 5; // 81,000
-        rgcparams.oz3up = 100;
+        rgcparams.oz3up = 200;
         rgcparams.oz3side = 765;
         rgcparams.divFactors[5] = 7; // 83,686
     }
@@ -649,7 +648,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
     int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0, rgcInd = 0,
-            fovy = ((perspHeight / 2) - 1), fovx = ((perspWidth / 2) - 1), diffX = 0, diffY = 0, divR = 0, mostProb = 0, ElXGr = 0, ElYGr = 0, ElXLs = 0, ElYLs = 0, divSector = 0;
+            fovy = ((perspHeight / 2) - 1), fovx = ((perspWidth / 2) - 1), diffX = 0, diffY = 0, divR = 0, mostProb = 0,
+            ElXGr = 0, ElYGr = 0, ElXLs = 0, ElYLs = 0, divSector = 0;
+    RGC swapVar;
     double SOL = 0, SOR = 0, eSOL = 0, SOLGr = 0, SOLLs = 0;
     random_device rd;     // Only used once to initialise (seed) engine
     mt19937 rng(rd());    // Random-number engine used (Mersenne-Twister in this case)
@@ -1422,6 +1423,20 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         if(tmpxSum != 0){
             xWidthsHost[rgcArrayHeight] = tmpxSum;
             RGCcount += tmpxSum;
+            for(int p = 0; p < (tmpxSum % 2 == 0 ? (tmpxSum / 2) : ((tmpxSum + 1) / 2)); p+= 1){
+                if(p == 0 && rgcArrayHeight == 8){
+                    cout << endl;
+                    cout << "length : " << tmpxSum << endl;
+                }
+                tmpRGCdets_r[rgcArrayHeight][p].perspX = (perspWidth - 1) - tmpRGCdets_r[rgcArrayHeight][p].perspX;
+                tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p].perspX = (perspWidth - 1) - tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p].perspX;
+                swapVar = tmpRGCdets_r[rgcArrayHeight][p];
+                tmpRGCdets_r[rgcArrayHeight][p] = tmpRGCdets_r[rgcArrayHeight][(tmpxSum - 1) - p];
+                tmpRGCdets_r[rgcArrayHeight][(xWidthsHost[rgcArrayHeight] - 1) - p] = swapVar;
+            }
+            for(int p = 0; p < tmpxSum; p+= 1){
+                tmpRGCdets_r[rgcArrayHeight][p].perspID = ((tmpRGCdets_r[rgcArrayHeight][p].perspY * perspWidth * 4) + (tmpRGCdets_r[rgcArrayHeight][p].perspX * 4));
+            }
         }
         yMatchHost[i] = rgcArrayHeight;
     }
@@ -1451,6 +1466,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     cudaMalloc(&xWidthsDev, perspHeight * sizeof(int));
     cudaMalloc(&yMatchDev, perspHeight * sizeof(int));
 
+    // RGC tempRGC;
     for(int i = 0; i < rgcArrayHeight; i+=1){
 
         cudaMalloc((void**) &RGCdets_l[i], ((xWidthsHost[i] * sizeof(RGC))));
