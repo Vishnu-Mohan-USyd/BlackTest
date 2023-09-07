@@ -152,17 +152,17 @@ void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS devicePara
     perspTest[(i * 4) + 2] = 0;
     perspTest[(i * 4) + 3] = 0;
 
-//    if(((x / 20) % 2 == 0) && ((y / 20) % 2 == 0)){
-//        perspLeft[(i * 4)] = 0;
-//        perspLeft[(i * 4) + 1] = 0;
-//        perspLeft[(i * 4) + 2] = 0;
-//        perspLeft[(i * 4) + 3] = 0;
-//    } else {
-//        perspLeft[(i * 4)] = 255;
-//        perspLeft[(i * 4) + 1] = 255;
-//        perspLeft[(i * 4) + 2] = 255;
-//        perspLeft[(i * 4) + 3] = 255;
-//    }
+    if(((x / 20) % 2 == 0) && ((y / 20) % 2 == 0)){
+        perspLeft[(i * 4)] = 0;
+        perspLeft[(i * 4) + 1] = 0;
+        perspLeft[(i * 4) + 2] = 0;
+        perspLeft[(i * 4) + 3] = 0;
+    } else {
+        perspLeft[(i * 4)] = 255;
+        perspLeft[(i * 4) + 1] = 255;
+        perspLeft[(i * 4) + 2] = 255;
+        perspLeft[(i * 4) + 3] = 255;
+    }
 }
 
 __global__
@@ -249,7 +249,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
     }
 
     float surrSumL = 0, cenSumL = 0, surrIdeal = 0, cenIdeal = 0, surrValL = 0, cenValL = 0,
-    xComp, yComp;
+            xComp, yComp;
     int midX, midY, surrSide = (RGCdet_l[posY][posX].cenRfSide + (2 * RGCdet_l[posY][posX].surRfWidth)), currIndex, cenIndex, testr = 0;
     if(surrSide % 2 == 0) {
         midX = surrSide / 2;
@@ -357,13 +357,12 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
     // Calculating center averages
     cenValL = cenSumL / cenIdeal;
 
-//
-//    if(RGCdet_l[posY][posX].type == MIDGET){
-//        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255);
-//        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255);
-//        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255);
-//        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255);
-//    }
+    if(RGCdet_l[posY][posX].type == MIDGET){
+        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 *(cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 * (cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 *(cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 *(cenValL - surrValL)));
+    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     leftInputs[posY][posX] = RGCdet_l[posY][posX].perspX;
@@ -496,12 +495,12 @@ void formRGCcurrents_r(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspR
     cenValR = cenSumR / cenIdeal;
 
 
-    if(RGCdet_r[posY][posX].type == MIDGET){
-        perspTest[RGCdet_r[posY][posX].perspID] =  (int)(255);
-        perspTest[RGCdet_r[posY][posX].perspID + 1] = (int)(255);
-        perspTest[RGCdet_r[posY][posX].perspID + 2] =  (int)(255);
-        perspTest[RGCdet_r[posY][posX].perspID + 3] = (int)(255);
-    }
+//    if(RGCdet_r[posY][posX].type == MIDGET){
+//        perspTest[RGCdet_r[posY][posX].perspID] =  (int)(255);
+//        perspTest[RGCdet_r[posY][posX].perspID + 1] = (int)(255);
+//        perspTest[RGCdet_r[posY][posX].perspID + 2] =  (int)(255);
+//        perspTest[RGCdet_r[posY][posX].perspID + 3] = (int)(255);
+//    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     rightInputs[posY][posX] = RGCdet_r[posY][posX].perspX;
@@ -556,6 +555,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     const int frame_height = vr_stateLeft.height;
     const int perspHeight = 2160;
     const int perspWidth = 3840;
+    const int camWidth = 1920;
+    const int camHeight = 1080;
     int numOfPixels = frame_width * frame_height;
     int *retinaDivs;
 
@@ -565,7 +566,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         printf("Couldn't init GLFW\n");
     }
 
-    window = glfwCreateWindow(1920, 1080, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(camWidth, camHeight, "Hello World", NULL, NULL);
     if (!window) {
         printf("Couldn't open window\n");
     }
@@ -644,7 +645,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             tillOZ2 = tillOZ1 + rgcparams.oz2up,
             tillOZ3 = tillOZ2 + rgcparams.oz3up,
             OZ3ellipse = tillOZ3 + 1000,
-            OZ2ellipse = tillOZ2 + 600;
+            OZ2ellipse = tillOZ2 + 600,
+
+            fovCenSide_m = 2, fovRfSide_m = 2, fovCenSide_p = 6, fovRfSide_p = 8,
+            paraCenSide_m = 3, paraRfSide_m = 3, paraCenSide_p = 8, paraRfSide_p = 10,
+            periCenSide_m = 3, periRfSide_m = 4, periCenSide_p = 12, periRfSide_p = 14,
+            oz1CenSide_m = 4, oz1RfSide_m = 5, oz1CenSide_p = 15, oz1RfSide_p = 18,
+            oz2CenSide_m = 12, oz2RfSide_m = 20, oz2CenSide_p = 24, oz2RfSide_p = 24,
+            oz3CenSide_m = 20, oz3RfSide_m = 20, oz3CenSide_p = 36, oz3RfSide_p = 48;
 
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
     int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0, rgcInd = 0,
@@ -879,8 +887,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 2;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 3;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 4;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -907,8 +915,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 2;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 3;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 4;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1449,7 +1457,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
     RGC** RGCdets_l = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev_l, **detsArray_h, **detsArray_d,
-    **RGCdets_r = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev_r;
+            **RGCdets_r = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev_r;
     float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d, **rgcInputPin_l, **rgcInputPin_r;
     detsArray_h = (RGC**)malloc(rgcArrayHeight * sizeof(RGC*));
     rgcInputsLeft_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
@@ -1751,9 +1759,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         glBindTexture(GL_TEXTURE_2D, tex_handle);
         glBegin(GL_QUADS);
         glTexCoord2d(0,0); glVertex2i(0, 0);
-        glTexCoord2d(1,0); glVertex2i(0 + 1920, 0);
-        glTexCoord2d(1,1); glVertex2i(0 + 1920, 0 + 1080);
-        glTexCoord2d(0,1); glVertex2i(0, 0 + 1080);
+        glTexCoord2d(1,0); glVertex2i(0 + camWidth, 0);
+        glTexCoord2d(1,1); glVertex2i(0 + camWidth, 0 + camHeight);
+        glTexCoord2d(0,1); glVertex2i(0, 0 + camHeight);
         glEnd();
         glDisable(GL_TEXTURE_2D);
 
