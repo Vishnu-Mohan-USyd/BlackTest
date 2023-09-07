@@ -28,10 +28,11 @@ FRUSTUM frustum;
 RGCPARAMS rgcparams;
 
 __global__
-void saxpy(RGC** RGCdet)
+void saxpy(RGC** RGCdet_r)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
+    // Gets the current coords in the RGC array
 
 
 }
@@ -232,7 +233,7 @@ void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRi
 
 }
 __global__
-void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLeft, uint8_t  *perspRight, float** leftInputs, float** rightInputs, int* xWidths, int* yMatch, RGC** RGCdet)
+void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLeft, float** leftInputs, int* xWidths, int* yMatch, RGC** RGCdet_l)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -247,9 +248,9 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLef
         }
     }
 
-    float surrSumL = 0, surrSumR = 0, cenSumL = 0, cenSumR = 0, surrIdeal = 0, cenIdeal = 0, surrValL = 0, cenValL = 0,
-            surrValR = 0, cenValR = 0, xComp, yComp;
-    int midX, midY, surrSide = (RGCdet[posY][posX].cenRfSide + (2 * RGCdet[posY][posX].surRfWidth)), currIndex, cenIndex, testr = 0;
+    float surrSumL = 0, cenSumL = 0, surrIdeal = 0, cenIdeal = 0, surrValL = 0, cenValL = 0,
+    xComp, yComp;
+    int midX, midY, surrSide = (RGCdet_l[posY][posX].cenRfSide + (2 * RGCdet_l[posY][posX].surRfWidth)), currIndex, cenIndex, testr = 0;
     if(surrSide % 2 == 0) {
         midX = surrSide / 2;
         midY = midX;
@@ -259,28 +260,28 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLef
         midY = midX;
     }
 
-    cenIndex = (RGCdet[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet[posY][posX].perspX * 4);
+    cenIndex = (RGCdet_l[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet_l[posY][posX].perspX * 4);
 
     for (int y = 1; y < (surrSide) + 1; y+=1){
         // Y boundary condition
-        if ((((RGCdet[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet[posY][posX].perspY)) ||
-             ((((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)) < midY) && (y > midY) &&
-              ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet[posY][posX].perspY)))))) {
+        if ((((RGCdet_l[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet_l[posY][posX].perspY)) ||
+             ((((rgcparams.perspHeight - 1) - (RGCdet_l[posY][posX].perspY)) < midY) && (y > midY) &&
+              ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet_l[posY][posX].perspY)))))) {
             continue;
         }
         for(int x = 1; x < (surrSide) + 1; x += 1){
             // X boundary condition
-            if ((((RGCdet[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet[posY][posX].perspX)) ||
-                 ((((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)) < midX) && (x > midX) &&
-                  ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet[posY][posX].perspX)))))) {
+            if ((((RGCdet_l[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet_l[posY][posX].perspX)) ||
+                 ((((rgcparams.perspWidth - 1) - (RGCdet_l[posY][posX].perspX)) < midX) && (x > midX) &&
+                  ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet_l[posY][posX].perspX)))))) {
                 continue;
             }
             currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
             xComp = 0; yComp = 0;
 
             // --------------------------- Surround Region -------------------------------
-            if((x <= (RGCdet[posY][posX].surRfWidth)) || (x > (surrSide - RGCdet[posY][posX].surRfWidth)) ||
-               (y <= (RGCdet[posY][posX].surRfWidth)) || (y > (surrSide - RGCdet[posY][posX].surRfWidth))){
+            if((x <= (RGCdet_l[posY][posX].surRfWidth)) || (x > (surrSide - RGCdet_l[posY][posX].surRfWidth)) ||
+               (y <= (RGCdet_l[posY][posX].surRfWidth)) || (y > (surrSide - RGCdet_l[posY][posX].surRfWidth))){
                 xComp = (float)x;
                 yComp = (float)y;
                 if(x > midX){
@@ -289,31 +290,26 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLef
                 if(y > midY){
                     yComp = (float)((surrSide + 1) - y);
                 }
-                if (RGCdet[posY][posX].detType == LUM){
+                if (RGCdet_l[posY][posX].detType == LUM){
                     testr+=1;
                     surrSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
-                    surrSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     surrIdeal += (float)(xComp + yComp) * 255;
-                } else if (RGCdet[posY][posX].detType == COLOR){
-                    if(RGCdet[posY][posX].colID == R_rgc){
+                } else if (RGCdet_l[posY][posX].detType == COLOR){
+                    if(RGCdet_l[posY][posX].colID == R_rgc){
                         // Surround is -M                     // M
                         surrSumL += ((xComp + yComp) * (float)perspLeft[currIndex + 1]);
-                        surrSumR += ((xComp + yComp) * (float)perspRight[currIndex + 1]);
                         surrIdeal += (xComp + yComp) * 255;
-                    } else if (RGCdet[posY][posX].colID == G_rgc){
+                    } else if (RGCdet_l[posY][posX].colID == G_rgc){
                         // Surround is -(S + L)                                                 // S                              // L
                         surrSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex]));
-                        surrSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex]));
                         surrIdeal += (xComp + yComp) * 255;
-                    } else if(RGCdet[posY][posX].colID == B_rgc){
+                    } else if(RGCdet_l[posY][posX].colID == B_rgc){
                         // Surround is -L                     // L
                         surrSumL += ((xComp + yComp) * (float)perspLeft[currIndex]);
-                        surrSumR += ((xComp + yComp) * (float)perspRight[currIndex]);
                         surrIdeal += (xComp + yComp) * 255;
-                    } else if (RGCdet[posY][posX].colID == Y_rgc){
+                    } else if (RGCdet_l[posY][posX].colID == Y_rgc){
                         // Surround is -(S + M)                                                 // S                              // M
                         surrSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex + 1]));
-                        surrSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex + 1]));
                         surrIdeal += (xComp + yComp) * 255;
                     }
                 }
@@ -321,39 +317,34 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLef
                 // ----------------------------- X -------------------------------
                 // --------------------------- Center Region -------------------------------
             else {
-                xComp = (float)x - RGCdet[posY][posX].surRfWidth;
-                yComp = (float)y - RGCdet[posY][posX].surRfWidth;
+                xComp = (float)x - RGCdet_l[posY][posX].surRfWidth;
+                yComp = (float)y - RGCdet_l[posY][posX].surRfWidth;
                 if(x > midX){
-                    xComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - x);
+                    xComp = (float)((RGCdet_l[posY][posX].cenRfSide + RGCdet_l[posY][posX].surRfWidth + 1) - x);
                 }
                 if(y > midY){
-                    yComp = (float)((RGCdet[posY][posX].cenRfSide + RGCdet[posY][posX].surRfWidth + 1) - y);
+                    yComp = (float)((RGCdet_l[posY][posX].cenRfSide + RGCdet_l[posY][posX].surRfWidth + 1) - y);
                 }
-                if (RGCdet[posY][posX].detType == LUM){
+                if (RGCdet_l[posY][posX].detType == LUM){
 
                     cenSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
-                    cenSumR += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     cenIdeal += (float)(xComp + yComp) * 255;
-                } else if (RGCdet[posY][posX].detType == COLOR){
-                    if(RGCdet[posY][posX].colID == R_rgc){
+                } else if (RGCdet_l[posY][posX].detType == COLOR){
+                    if(RGCdet_l[posY][posX].colID == R_rgc){
                         // Center is (S+L)                                                     // S                              // L
                         cenSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex]));
-                        cenSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex]));
                         cenIdeal += (xComp + yComp) * 255;
-                    } else if (RGCdet[posY][posX].colID == G_rgc){
+                    } else if (RGCdet_l[posY][posX].colID == G_rgc){
                         // Center is M                       // M
                         cenSumL += ((xComp + yComp) * (float)perspLeft[currIndex + 1]);
-                        cenSumR += ((xComp + yComp) * (float)perspRight[currIndex + 1]);
                         cenIdeal += (xComp + yComp) * 255;
-                    } else if(RGCdet[posY][posX].colID == B_rgc){
+                    } else if(RGCdet_l[posY][posX].colID == B_rgc){
                         // Center is (S+M)                                                     // S                              // M
                         cenSumL += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspLeft[currIndex + 2] : (float)perspLeft[currIndex + 1]));
-                        cenSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex + 1]));
                         cenIdeal += (xComp + yComp) * 255;
-                    } else if (RGCdet[posY][posX].colID == Y_rgc){
+                    } else if (RGCdet_l[posY][posX].colID == Y_rgc){
                         // Center is L                       // L
                         cenSumL += ((xComp + yComp) * (float)perspLeft[currIndex]);
-                        cenSumR += ((xComp + yComp) * (float)perspRight[currIndex]);
                         cenIdeal += (xComp + yComp) * 255;
                     }
                 }
@@ -363,23 +354,159 @@ void formRGCcurrents(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLef
     }
     // Calculating surround averages
     surrValL = surrSumL / surrIdeal;
-    surrValR = surrSumR / surrIdeal;
     // Calculating center averages
     cenValL = cenSumL / cenIdeal;
+
+    //if()
+
+    if(RGCdet_l[posY][posX].type == MIDGET){
+        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255);
+        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255);
+        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255);
+        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255);
+    }
+    // To rectify -ve responses, just multiply the below with
+    // (((cenValR - surrValR) < 0) ? -0 : 1)
+    leftInputs[posY][posX] = RGCdet_l[posY][posX].perspX;
+
+}
+
+__global__
+void formRGCcurrents_r(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspRight, float** rightInputs, int* xWidths, int* yMatch, RGC** RGCdet_r)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Gets the current coords in the RGC array
+    int tempCumWidth = 0, posX = 0, posY = 0;
+    for(int j = 0; j < rgcparams.rgcArrLen; j+=1){
+        tempCumWidth += xWidths[j];
+        if(i < tempCumWidth){
+            posY = j;
+            posX = i - (tempCumWidth - xWidths[j]);
+            break;
+        }
+    }
+
+    float surrSumR = 0, cenSumR = 0, surrIdeal = 0, cenIdeal = 0, surrValR = 0, cenValR = 0,
+            xComp, yComp;
+    int midX, midY, surrSide = (RGCdet_r[posY][posX].cenRfSide + (2 * RGCdet_r[posY][posX].surRfWidth)), currIndex, cenIndex, testr = 0;
+    if(surrSide % 2 == 0) {
+        midX = surrSide / 2;
+        midY = midX;
+    }
+    if(surrSide % 2 == 1) {
+        midX = (surrSide / 2) + 1;
+        midY = midX;
+    }
+
+    cenIndex = (RGCdet_r[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet_r[posY][posX].perspX * 4);
+
+    for (int y = 1; y < (surrSide) + 1; y+=1){
+        // Y boundary condition
+        if ((((RGCdet_r[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet_r[posY][posX].perspY)) ||
+             ((((rgcparams.perspHeight - 1) - (RGCdet_r[posY][posX].perspY)) < midY) && (y > midY) &&
+              ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet_r[posY][posX].perspY)))))) {
+            continue;
+        }
+        for(int x = 1; x < (surrSide) + 1; x += 1){
+            // X boundary condition
+            if ((((RGCdet_r[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet_r[posY][posX].perspX)) ||
+                 ((((rgcparams.perspWidth - 1) - (RGCdet_r[posY][posX].perspX)) < midX) && (x > midX) &&
+                  ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet_r[posY][posX].perspX)))))) {
+                continue;
+            }
+            currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
+            xComp = 0; yComp = 0;
+
+            // --------------------------- Surround Region -------------------------------
+            if((x <= (RGCdet_r[posY][posX].surRfWidth)) || (x > (surrSide - RGCdet_r[posY][posX].surRfWidth)) ||
+               (y <= (RGCdet_r[posY][posX].surRfWidth)) || (y > (surrSide - RGCdet_r[posY][posX].surRfWidth))){
+                xComp = (float)x;
+                yComp = (float)y;
+                if(x > midX){
+                    xComp = (float)((surrSide + 1) - x);
+                }
+                if(y > midY){
+                    yComp = (float)((surrSide + 1) - y);
+                }
+                if (RGCdet_r[posY][posX].detType == LUM){
+                    testr+=1;
+                    surrSumR += (float)(xComp + yComp) * (float)perspRight[currIndex + 3];
+                    surrIdeal += (float)(xComp + yComp) * 255;
+                } else if (RGCdet_r[posY][posX].detType == COLOR){
+                    if(RGCdet_r[posY][posX].colID == R_rgc){
+                        // Surround is -M                     // M
+                        surrSumR += ((xComp + yComp) * (float)perspRight[currIndex + 1]);
+                        surrIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet_r[posY][posX].colID == G_rgc){
+                        // Surround is -(S + L)                                                 // S                              // L
+                        surrSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex]));
+                        surrIdeal += (xComp + yComp) * 255;
+                    } else if(RGCdet_r[posY][posX].colID == B_rgc){
+                        // Surround is -L                     // L
+                        surrSumR += ((xComp + yComp) * (float)perspRight[currIndex]);
+                        surrIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet_r[posY][posX].colID == Y_rgc){
+                        // Surround is -(S + M)                                                 // S                              // M
+                        surrSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex + 1]));
+                        surrIdeal += (xComp + yComp) * 255;
+                    }
+                }
+            }
+                // ----------------------------- X -------------------------------
+                // --------------------------- Center Region -------------------------------
+            else {
+                xComp = (float)x - RGCdet_r[posY][posX].surRfWidth;
+                yComp = (float)y - RGCdet_r[posY][posX].surRfWidth;
+                if(x > midX){
+                    xComp = (float)((RGCdet_r[posY][posX].cenRfSide + RGCdet_r[posY][posX].surRfWidth + 1) - x);
+                }
+                if(y > midY){
+                    yComp = (float)((RGCdet_r[posY][posX].cenRfSide + RGCdet_r[posY][posX].surRfWidth + 1) - y);
+                }
+                if (RGCdet_r[posY][posX].detType == LUM){
+
+                    cenSumR += (float)(xComp + yComp) * (float)perspRight[currIndex + 3];
+                    cenIdeal += (float)(xComp + yComp) * 255;
+                } else if (RGCdet_r[posY][posX].detType == COLOR){
+                    if(RGCdet_r[posY][posX].colID == R_rgc){
+                        // Center is (S+L)                                                     // S                              // L
+                        cenSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex]));
+                        cenIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet_r[posY][posX].colID == G_rgc){
+                        // Center is M                       // M
+                        cenSumR += ((xComp + yComp) * (float)perspRight[currIndex + 1]);
+                        cenIdeal += (xComp + yComp) * 255;
+                    } else if(RGCdet_r[posY][posX].colID == B_rgc){
+                        // Center is (S+M)                                                     // S                              // M
+                        cenSumR += ((xComp + yComp) * (((x % 2 == 0) && (y % 2 == 0)) ? (float)perspRight[currIndex + 2] : (float)perspRight[currIndex + 1]));
+                        cenIdeal += (xComp + yComp) * 255;
+                    } else if (RGCdet_r[posY][posX].colID == Y_rgc){
+                        // Center is L                       // L
+                        cenSumR += ((xComp + yComp) * (float)perspRight[currIndex]);
+                        cenIdeal += (xComp + yComp) * 255;
+                    }
+                }
+            }
+            // ----------------------------- X -------------------------------
+        }
+    }
+    // Calculating surround averages
+    surrValR = surrSumR / surrIdeal;
+    // Calculating center averages
     cenValR = cenSumR / cenIdeal;
 
     //if()
 
-    if(RGCdet[posY][posX].type == MIDGET){
-        perspTest[RGCdet[posY][posX].perspID] =  (int)(255);
-        perspTest[RGCdet[posY][posX].perspID + 1] = (int)(255);
-        perspTest[RGCdet[posY][posX].perspID + 2] =  (int)(255);
-        perspTest[RGCdet[posY][posX].perspID + 3] = (int)(255);
-    }
+//    if(RGCdet_r[posY][posX].type == MIDGET){
+//        perspTest[RGCdet_r[posY][posX].perspID] =  (int)(255);
+//        perspTest[RGCdet_r[posY][posX].perspID + 1] = (int)(255);
+//        perspTest[RGCdet_r[posY][posX].perspID + 2] =  (int)(255);
+//        perspTest[RGCdet_r[posY][posX].perspID + 3] = (int)(255);
+//    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
-    leftInputs[posY][posX] = RGCdet[posY][posX].perspX;
-    rightInputs[posY][posX] = (cenValR - surrValR);
+    rightInputs[posY][posX] = RGCdet_r[posY][posX].perspX;
 
 }
 
@@ -502,10 +629,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         rgcparams.oz1up = 200;
         rgcparams.oz1side = 300;
         rgcparams.divFactors[3] = 4; // 60,000 122400-corners 336600-sides 158400-tops
-        rgcparams.oz2up = 300;
+        rgcparams.oz2up = 200;
         rgcparams.oz2side = 510;
         rgcparams.divFactors[4] = 5; // 81,000
-        rgcparams.oz3up = 200;
+        rgcparams.oz3up = 100;
         rgcparams.oz3side = 765;
         rgcparams.divFactors[5] = 7; // 83,686
     }
@@ -517,8 +644,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             tillOZ1 = tillPeri + rgcparams.oz1up,
             tillOZ2 = tillOZ1 + rgcparams.oz2up,
             tillOZ3 = tillOZ2 + rgcparams.oz3up,
-            OZ3ellipse = tillOZ3 + 800,
-            OZ2ellipse = tillOZ2 + 400;
+            OZ3ellipse = tillOZ3 + 1000,
+            OZ2ellipse = tillOZ2 + 600;
 
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
     int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0, rgcInd = 0,
@@ -536,7 +663,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     divLength = 0,
     // angle between point and origin
     angle = 0, angleDeg = 0;
-    RGC** tmpRGCdets = (RGC**) malloc(perspHeight * sizeof(RGC*));
+    RGC** tmpRGCdets_l = (RGC**) malloc(perspHeight * sizeof(RGC*)),
+            **tmpRGCdets_r = (RGC**) malloc(perspHeight * sizeof(RGC*));
     yMatchHost = (int *)malloc(perspHeight * sizeof(int));
     xWidthsHost = (int *)malloc(perspHeight * sizeof(int));
     //------------------------------------------------------------------
@@ -551,34 +679,63 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             if(SOL < pow(rgcparams.foveaWidth, 2) && (i % rgcparams.divFactors[0] == 0) && (j % rgcparams.divFactors[0] == 0)){
                 if(tmpxSum == 0){
                     rgcArrayHeight+=1;
-                    tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                    tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                    tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                 }
-                tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                 currRand = uni(rng);
                 if(currRand > 0.95){
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 6;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 8;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 6;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 8;
                 } else {
                     currRand = uni(rng);
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 2;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 2;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 2;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 2;
                     currRand = uni(rng);
                     if(currRand < 0.25) {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                        if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                        if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                        if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                        if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                        if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                        if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                        if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                        if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                     }
                 }
-                tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                tmpRGCdets[rgcArrayHeight][tmpxSum].zone = FOV;
+                tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = FOV;
+
+                // Right eye entry
+                tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                currRand = uni(rng);
+                if(currRand > 0.95){
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 6;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 8;
+                } else {
+                    currRand = uni(rng);
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 2;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 2;
+                    currRand = uni(rng);
+                    if(currRand < 0.25) {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                        if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                        if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                        if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                        if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                    }
+                }
+                tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = FOV;
                 tmpxSum+=1;
             }
             // ----------------------- X --------------------------------
@@ -615,34 +772,63 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
-                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                     currRand = uni(rng);
                     if(currRand > 0.95){
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 8;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 10;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 8;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 10;
                     } else {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 3;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 3;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 3;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
-                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                            tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                         }
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = PARA;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = PARA;
+
+                    // Right eye
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.95){
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 8;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 10;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 3;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = PARA;
                     tmpxSum+=1;
                 }
             }
@@ -678,34 +864,63 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
-                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                     currRand = uni(rng);
                     if(currRand > 0.9){
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 14;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 14;
                     } else {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 2;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 2;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 3;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
-                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                            tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                         }
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = PERI;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = PERI;
+
+                    // Right eye
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.9){
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 14;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 2;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = PERI;
                     tmpxSum+=1;
                 }
 
@@ -744,34 +959,63 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
-                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                     currRand = uni(rng);
                     if(currRand > 0.8){
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 15;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 18;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 15;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 18;
                     } else {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 4;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 5;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 4;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 5;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
-                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                            tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                         }
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ1;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = OZ1;
+
+                    // Right eye
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.8){
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 15;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 18;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 4;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 5;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = OZ1;
                     tmpxSum+=1;
                 }
 
@@ -808,34 +1052,63 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
-                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                     currRand = uni(rng);
                     if(currRand > 0.7){
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 24;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 24;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 24;
                     } else {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
-                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                            tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                         }
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ2;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = OZ2;
+
+                    // Right eye
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.7){
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 24;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = OZ2;
                     tmpxSum+=1;
                 }
 
@@ -878,40 +1151,69 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                         // if currRand is greater
                     else divR = rgcparams.divFactors[3] + divSector + 1;
                 }
-                 cout << "SOL : " << SOL << " || SOLGr : " << SOLGr << " || SolLs : " << SOLLs << " || ElXLs : " << ElXLs <<
-                                        " || tan : "  << tan(angle) << " || ElYLs : " << ElYLs << " || x : " << j - fovx << " || y :" << diffY << " || angle : " << angleDeg << " || divL : " <<
-                                        divLength <<  " || sector : " << divSector << " || radProg : " << radProg << " || divR : " << divR << endl;
+//                 cout << "SOL : " << SOL << " || SOLGr : " << SOLGr << " || SolLs : " << SOLLs << " || ElXLs : " << ElXLs <<
+//                                        " || tan : "  << tan(angle) << " || ElYLs : " << ElYLs << " || x : " << j - fovx << " || y :" << diffY << " || angle : " << angleDeg << " || divL : " <<
+//                                        divLength <<  " || sector : " << divSector << " || radProg : " << radProg << " || divR : " << divR << endl;
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
-                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                     currRand = uni(rng);
                     if(currRand > 0.7){
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 24;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 24;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 24;
                     } else {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
-                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                            tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                         }
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ2;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = OZ2;
+
+                    // Right eye
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.7){
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 24;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 12;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = OZ2;
                     tmpxSum+=1;
                 }
 
@@ -948,34 +1250,63 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
-                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                     currRand = uni(rng);
                     if(currRand > 0.6){
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 36;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 36;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 48;
                     } else {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 20;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
-                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                            tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                         }
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ3;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = OZ3;
+
+                    // Right eye
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.6){
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 36;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 20;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = OZ3;
                     tmpxSum+=1;
                 }
             }
@@ -1024,34 +1355,63 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
-                        tmpRGCdets[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_l[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
+                        tmpRGCdets_r[rgcArrayHeight] = (RGC*)malloc(perspWidth * sizeof(RGC));
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
                     currRand = uni(rng);
                     if(currRand > 0.6){
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 36;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 36;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 48;
                     } else {
                         currRand = uni(rng);
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].type = MIDGET;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].cenRfSide = 20;
-                        tmpRGCdets[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
-                            tmpRGCdets[rgcArrayHeight][tmpxSum].detType = COLOR;
-                            if(currRand < 0.4) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = R_rgc;
-                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = G_rgc;
-                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = B_rgc;
-                            if(currRand >= 0.9) tmpRGCdets[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                            tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_l[rgcArrayHeight][tmpxSum].colID = Y_rgc;
                         }
                     }
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspX = j;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].perspY = i;
-                    tmpRGCdets[rgcArrayHeight][tmpxSum].zone = OZ3;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].zone = OZ3;
+
+                    // Right eye
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspID = ((i * perspWidth * 4) + (j * 4));
+                    currRand = uni(rng);
+                    if(currRand > 0.6){
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 36;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                    } else {
+                        currRand = uni(rng);
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 20;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        currRand = uni(rng);
+                        if(currRand < 0.25) {
+                            currRand = uni(rng);
+                            tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = COLOR;
+                            if(currRand < 0.4) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = R_rgc;
+                            if(currRand >= 0.4 && currRand < 0.7) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = G_rgc;
+                            if(currRand >= 0.7 && currRand < 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = B_rgc;
+                            if(currRand >= 0.9) tmpRGCdets_r[rgcArrayHeight][tmpxSum].colID = Y_rgc;
+                        }
+                    }
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspX = j;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].perspY = i;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].zone = OZ3;
                     tmpxSum+=1;
                 }
             }
@@ -1076,14 +1436,16 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     *v2rp->perspH = perspHeight;
 
     //------- Prep - the 2D arrays needed to capture RGC input ----------------
-    RGC** RGCdets = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev, **detsArray_h, **detsArray_d;
+    RGC** RGCdets_l = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), ** RGCdetsPin = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev_l, **detsArray_h, **detsArray_d,
+    **RGCdets_r = (RGC**) malloc(rgcArrayHeight * sizeof(RGC*)), **RGCDetsDev_r;
     float **rgcInputsLeft_h, **rgcInputsRight_h, **rgcInputsLeft_d, **rgcInputsRight_d, **rgcInputPin_l, **rgcInputPin_r;
     detsArray_h = (RGC**)malloc(rgcArrayHeight * sizeof(RGC*));
     rgcInputsLeft_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcInputsRight_h = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
     rgcInputPin_r = (float**)malloc(rgcArrayHeight * sizeof(float*));
-    cudaMalloc(&RGCDetsDev, rgcArrayHeight * sizeof(RGC*));
+    cudaMalloc(&RGCDetsDev_l, rgcArrayHeight * sizeof(RGC*));
+    cudaMalloc(&RGCDetsDev_r, rgcArrayHeight * sizeof(RGC*));
     cudaMalloc(&rgcInputsLeft_d, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&rgcInputsRight_d, rgcArrayHeight * sizeof(float*));
     cudaMalloc(&xWidthsDev, perspHeight * sizeof(int));
@@ -1091,15 +1453,18 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
     for(int i = 0; i < rgcArrayHeight; i+=1){
 
-        cudaMalloc((void**) &RGCdets[i], ((xWidthsHost[i]*sizeof(RGC))));
-        cudaMemcpy(RGCdets[i], tmpRGCdets[i], xWidthsHost[i] * sizeof(RGC), cudaMemcpyHostToDevice);
+        cudaMalloc((void**) &RGCdets_l[i], ((xWidthsHost[i] * sizeof(RGC))));
+        cudaMalloc((void**) &RGCdets_r[i], ((xWidthsHost[i] * sizeof(RGC))));
+        cudaMemcpy(RGCdets_l[i], tmpRGCdets_l[i], xWidthsHost[i] * sizeof(RGC), cudaMemcpyHostToDevice);
+        cudaMemcpy(RGCdets_r[i], tmpRGCdets_r[i], xWidthsHost[i] * sizeof(RGC), cudaMemcpyHostToDevice);
         RGCdetsPin[i] = (RGC*) malloc(xWidthsHost[i] * sizeof(RGC));
         rgcInputPin_l[i] = (float*)malloc(xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcInputsLeft_h[i], xWidthsHost[i] * sizeof(float));
         cudaMalloc((void **)&rgcInputsRight_h[i], xWidthsHost[i] * sizeof(float));
     }
 
-    cudaMemcpy(RGCDetsDev,RGCdets,rgcArrayHeight * sizeof(RGC*),cudaMemcpyHostToDevice);
+    cudaMemcpy(RGCDetsDev_l, RGCdets_l, rgcArrayHeight * sizeof(RGC*), cudaMemcpyHostToDevice);
+    cudaMemcpy(RGCDetsDev_r, RGCdets_r, rgcArrayHeight * sizeof(RGC*), cudaMemcpyHostToDevice);
     cudaMemcpy(rgcInputsLeft_d, rgcInputsLeft_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     cudaMemcpy(rgcInputsRight_d, rgcInputsRight_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
 //    // -------------------------------------------------------------------
@@ -1273,9 +1638,15 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
 
         // Forms RGC inputs
-        formRGCcurrents<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspLeft, perspRight,
-                                                                            rgcInputsLeft_d, rgcInputsRight_d,
-                                                                            xWidthsDev, yMatchDev, RGCDetsDev);
+        formRGCcurrents_l<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspLeft,
+                                                                              rgcInputsLeft_d, xWidthsDev, yMatchDev,
+                                                                              RGCDetsDev_l);
+        cudaDeviceSynchronize();
+
+//        // Forms RGC inputs
+        formRGCcurrents_r<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspRight,
+                                                                              rgcInputsRight_d, xWidthsDev, yMatchDev,
+                                                                              RGCDetsDev_r);
         cudaDeviceSynchronize();
 
         cudaSetDevice(0);
@@ -1296,12 +1667,18 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 //
         // Transfers RGC details array back after initialisation
         if(toIgnore == 0){
-            cudaMemcpy(RGCdets, RGCDetsDev, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
+            cudaMemcpy(RGCdets_r, RGCDetsDev_r, rgcArrayHeight * sizeof(RGC*), cudaMemcpyDeviceToHost);
             for(int p = 0; p < rgcArrayHeight; p+=1){
-                cudaMemcpy(RGCdetsPin[p], RGCdets[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
+                cudaMemcpy(RGCdetsPin[p], RGCdets_r[p], xWidthsHost[p] * sizeof(RGC), cudaMemcpyDeviceToHost);
             }
             rgcDetsQ->push(RGCdetsPin);
         }
+//        for(int b = 0; b < 100; b+=1){
+//            for(int a = 0; a < xWidthsHost[b]; a+=1){
+//                cout << RGCdetsPin[b][a].perspX << " - ";
+//            }
+//        }
+
 
 
         rgcInputPin_l = (float**)malloc(rgcArrayHeight * sizeof(float*));
