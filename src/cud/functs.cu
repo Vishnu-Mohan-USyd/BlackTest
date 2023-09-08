@@ -647,12 +647,12 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             OZ3ellipse = tillOZ3 + 1000,
             OZ2ellipse = tillOZ2 + 600,
 
-            fovCenSide_m = 2, fovSurrSide_m = 2, fovCenSide_p = 6, fovSurrSide_p = 8,
-            paraCenSide_m = 2, paraSurrSide_m = 3, paraCenSide_p = 8, paraSurrSide_p = 10,
-            periCenSide_m = 3, periSurrSide_m = 4, periCenSide_p = 12, periSurrSide_p = 14,
-            oz1CenSide_m = 4, oz1SurrSide_m = 5, oz1CenSide_p = 15, oz1SurrSide_p = 18,
-            oz2CenSide_m = 12, oz2SurrSide_m = 20, oz2CenSide_p = 24, oz2SurrSide_p = 24,
-            oz3CenSide_m = 20, oz3SurrSide_m = 20, oz3CenSide_p = 36, oz3SurrSide_p = 48,
+            fovCenSide_m = 5, fovSurrSide_m = 6, fovCenSide_p = 6, fovSurrSide_p = 8,
+            paraCenSide_m = 8, paraSurrSide_m = 10, paraCenSide_p = 8, paraSurrSide_p = 10,
+            periCenSide_m = 10, periSurrSide_m = 16, periCenSide_p = 12, periSurrSide_p = 14,
+            oz1CenSide_m = 12, oz1SurrSide_m = 20, oz1CenSide_p = 15, oz1SurrSide_p = 18,
+            oz2CenSide_m = 16, oz2SurrSide_m = 40, oz2CenSide_p = 24, oz2SurrSide_p = 24,
+            oz3CenSide_m = 24, oz3SurrSide_m = 60, oz3CenSide_p = 36, oz3SurrSide_p = 48,
             tmpCenSide_m = 0, tmpSurrSide_m = 0, tmpCenSide_p = 0, tmpSurrSide_p = 0;
 
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
@@ -2180,6 +2180,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     cudaMemcpy(RGCDetsDev_r, RGCdets_r, rgcArrayHeight * sizeof(RGC*), cudaMemcpyHostToDevice);
     cudaMemcpy(rgcInputsLeft_d, rgcInputsLeft_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
     cudaMemcpy(rgcInputsRight_d, rgcInputsRight_h, rgcArrayHeight * sizeof(float*), cudaMemcpyHostToDevice);
+
 //    // -------------------------------------------------------------------
 //
 //
@@ -2240,6 +2241,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
 
 
+
     cudaDeviceProp a{};
     cudaSetDevice(0);
     cudaGetDeviceProperties(&a, 0);
@@ -2263,6 +2265,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     // ------------------- Frustum calculation for world2persp ---------------------------------
 
     CalcFrustum();
+
 
     // ------------------------------------------------------------------------------------
 
@@ -2288,19 +2291,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     cudaStreamCreate(&memStream2);
     cudaStreamCreate ( &funcStream2);
 
+    cudaSetDevice(0);
+
+
     currentFrameLeft = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
     currentFrameRight = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
     perspHost = (uint8_t*)malloc((perspHeight * perspWidth * 4) * sizeof(uint8_t));
 
-//    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
-//                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
-//    params.transform[params.ntransform].axis = ZPAN;
-//    params.transform[params.ntransform].value = (M_PI / 180)*(30);
-//    params.ntransform++;
-//    for (int j=0;j<params.ntransform;j++) {
-//        params.transform[j].cvalue = cos(params.transform[j].value);
-//        params.transform[j].svalue = sin(params.transform[j].value);
-//    }
+
 
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
     cudaMallocHost((void**)&currentFrameLeft, bytes * 4);
@@ -2314,7 +2312,44 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     vector<::uint8_t *> frameArrayLeft, frameArrayRight;
     int frameIndex = 0; int toIgnore = 0;
 
+
+    cudaSetDevice(0);
+    TRANSFORM *saccadeBank = NULL;
+    int saccadeCount = 0;
+
+    saccadeBank = static_cast<TRANSFORM *>(realloc(saccadeBank,(saccadeCount + 1) * sizeof(TRANSFORM)));
+    saccadeBank[saccadeCount].axis = ZPAN;
+    saccadeBank[saccadeCount].value = (M_PI / 180)*(60);
+    saccadeCount+=1;
+    for (int j=0;j<saccadeCount;j++) {
+        saccadeBank[j].cvalue = cos(saccadeBank[j].value);
+        saccadeBank[j].svalue = sin(saccadeBank[j].value);
+    }
+
+    params.transform = saccadeBank;
+    params.ntransform = saccadeCount;
+
+
+    cudaMalloc(&devTrans, saccadeCount * sizeof(TRANSFORM));
     while(true){
+
+
+//        cudaSetDevice(0);
+//
+//        saccadeBank = static_cast<TRANSFORM *>(realloc(saccadeBank,(saccadeCount + 1) * sizeof(TRANSFORM)));
+//        saccadeBank[saccadeCount].axis = ZPAN;
+//        saccadeBank[saccadeCount].value = (M_PI / 180)*(0.5);
+//        saccadeCount+=1;
+//        for (int j=0;j<saccadeCount;j++) {
+//            saccadeBank[j].cvalue = cos(saccadeBank[j].value);
+//            saccadeBank[j].svalue = sin(saccadeBank[j].value);
+//        }
+//
+//        params.transform = saccadeBank;
+//        params.ntransform = saccadeCount;
+//
+//
+//        cudaMalloc(&devTrans, saccadeCount * sizeof(TRANSFORM));
 
 
         frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
@@ -2387,7 +2422,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cudaSetDevice(0);
 
         // Transfer perspective frame back after computation - not necessary
-        cudaMemcpy(perspHost, perspLeft, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
         //else cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
 //
@@ -2476,6 +2511,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         glfwPollEvents();
         // ::getchar();
         toIgnore+=1;
+        cudaFree(devTrans);
+        cudaFree(retinaDivs);
+        cudaFree(yMatchDev);
+        cudaFree(xWidthsDev);
     }
 
 
