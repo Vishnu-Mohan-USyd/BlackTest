@@ -647,12 +647,12 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             OZ3ellipse = tillOZ3 + 1000,
             OZ2ellipse = tillOZ2 + 600,
 
-            fovCenSide_m = 5, fovSurrSide_m = 6, fovCenSide_p = 6, fovSurrSide_p = 8,
-            paraCenSide_m = 8, paraSurrSide_m = 10, paraCenSide_p = 8, paraSurrSide_p = 10,
-            periCenSide_m = 10, periSurrSide_m = 16, periCenSide_p = 12, periSurrSide_p = 14,
-            oz1CenSide_m = 12, oz1SurrSide_m = 20, oz1CenSide_p = 15, oz1SurrSide_p = 18,
-            oz2CenSide_m = 16, oz2SurrSide_m = 40, oz2CenSide_p = 24, oz2SurrSide_p = 24,
-            oz3CenSide_m = 24, oz3SurrSide_m = 60, oz3CenSide_p = 36, oz3SurrSide_p = 48,
+            fovCenSide_m = 2, fovSurrSide_m = 5, fovCenSide_p = 6, fovSurrSide_p = 8,
+            paraCenSide_m = 3, paraSurrSide_m = 10, paraCenSide_p = 8, paraSurrSide_p = 10,
+            periCenSide_m = 5, periSurrSide_m = 16, periCenSide_p = 12, periSurrSide_p = 14,
+            oz1CenSide_m = 10, oz1SurrSide_m = 20, oz1CenSide_p = 15, oz1SurrSide_p = 18,
+            oz2CenSide_m = 14, oz2SurrSide_m = 40, oz2CenSide_p = 24, oz2SurrSide_p = 24,
+            oz3CenSide_m = 20, oz3SurrSide_m = 60, oz3CenSide_p = 36, oz3SurrSide_p = 48,
             tmpCenSide_m = 0, tmpSurrSide_m = 0, tmpCenSide_p = 0, tmpSurrSide_p = 0;
 
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
@@ -2319,7 +2319,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
     saccadeBank = static_cast<TRANSFORM *>(realloc(saccadeBank,(saccadeCount + 1) * sizeof(TRANSFORM)));
     saccadeBank[saccadeCount].axis = ZPAN;
-    saccadeBank[saccadeCount].value = (M_PI / 180)*(60);
+    saccadeBank[saccadeCount].value = (M_PI / 180)*(20);
     saccadeCount+=1;
     for (int j=0;j<saccadeCount;j++) {
         saccadeBank[j].cvalue = cos(saccadeBank[j].value);
@@ -2334,22 +2334,22 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     while(true){
 
 
-//        cudaSetDevice(0);
-//
-//        saccadeBank = static_cast<TRANSFORM *>(realloc(saccadeBank,(saccadeCount + 1) * sizeof(TRANSFORM)));
-//        saccadeBank[saccadeCount].axis = ZPAN;
-//        saccadeBank[saccadeCount].value = (M_PI / 180)*(0.5);
-//        saccadeCount+=1;
-//        for (int j=0;j<saccadeCount;j++) {
-//            saccadeBank[j].cvalue = cos(saccadeBank[j].value);
-//            saccadeBank[j].svalue = sin(saccadeBank[j].value);
-//        }
-//
-//        params.transform = saccadeBank;
-//        params.ntransform = saccadeCount;
-//
-//
-//        cudaMalloc(&devTrans, saccadeCount * sizeof(TRANSFORM));
+        cudaSetDevice(0);
+
+        saccadeBank = static_cast<TRANSFORM *>(realloc(saccadeBank,(saccadeCount + 1) * sizeof(TRANSFORM)));
+        saccadeBank[saccadeCount].axis = ZPAN;
+        saccadeBank[saccadeCount].value = (M_PI / 180)*(-1);
+        saccadeCount+=1;
+        for (int j=0;j<saccadeCount;j++) {
+            saccadeBank[j].cvalue = cos(saccadeBank[j].value);
+            saccadeBank[j].svalue = sin(saccadeBank[j].value);
+        }
+
+        params.transform = saccadeBank;
+        params.ntransform = saccadeCount;
+
+
+        cudaMalloc(&devTrans, saccadeCount * sizeof(TRANSFORM));
 
 
         frameLeft = video_reader_read_frame(&vr_stateLeft, frame_data_left, &pts);
@@ -2511,10 +2511,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         glfwPollEvents();
         // ::getchar();
         toIgnore+=1;
-        cudaFree(devTrans);
-        cudaFree(retinaDivs);
-        cudaFree(yMatchDev);
-        cudaFree(xWidthsDev);
+//        cudaFree(devTrans);
+//        cudaFree(retinaDivs);
+//        cudaFree(yMatchDev);
+//        cudaFree(xWidthsDev);
     }
 
 
