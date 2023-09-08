@@ -647,17 +647,19 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             OZ3ellipse = tillOZ3 + 1000,
             OZ2ellipse = tillOZ2 + 600,
 
-            fovCenSide_m = 2, fovRfSide_m = 2, fovCenSide_p = 6, fovRfSide_p = 8,
-            paraCenSide_m = 3, paraRfSide_m = 3, paraCenSide_p = 8, paraRfSide_p = 10,
-            periCenSide_m = 3, periRfSide_m = 4, periCenSide_p = 12, periRfSide_p = 14,
-            oz1CenSide_m = 4, oz1RfSide_m = 5, oz1CenSide_p = 15, oz1RfSide_p = 18,
-            oz2CenSide_m = 12, oz2RfSide_m = 20, oz2CenSide_p = 24, oz2RfSide_p = 24,
-            oz3CenSide_m = 20, oz3RfSide_m = 20, oz3CenSide_p = 36, oz3RfSide_p = 48;
+            fovCenSide_m = 2, fovSurrSide_m = 2, fovCenSide_p = 6, fovSurrSide_p = 8,
+            paraCenSide_m = 3, paraSurrSide_m = 3, paraCenSide_p = 8, paraSurrSide_p = 10,
+            periCenSide_m = 3, periSurrSide_m = 4, periCenSide_p = 12, periSurrSide_p = 14,
+            oz1CenSide_m = 4, oz1SurrSide_m = 5, oz1CenSide_p = 15, oz1SurrSide_p = 18,
+            oz2CenSide_m = 12, oz2SurrSide_m = 20, oz2CenSide_p = 24, oz2SurrSide_p = 24,
+            oz3CenSide_m = 20, oz3SurrSide_m = 20, oz3CenSide_p = 36, oz3SurrSide_p = 48,
+            tmpCenSide_m = 0, tmpSurrSide_m = 0, tmpCenSide_p = 0, tmpSurrSide_p = 0;
 
     //------ Init - VAriables required to calculate RGC inputs in initRGCdets -----------
     int *yMatchHost, *xWidthsHost, *yMatchDev, *xWidthsDev, tmpxSum, rgcArrayHeight = -1, RGCcount = 0, rgcInd = 0,
             fovy = ((perspHeight / 2) - 1), fovx = ((perspWidth / 2) - 1), diffX = 0, diffY = 0, divR = 0, mostProb = 0,
-            ElXGr = 0, ElYGr = 0, ElXLs = 0, ElYLs = 0, divSector = 0;
+            ElXGr = 0, ElYGr = 0, ElXLs = 0, ElYLs = 0, divSector_df = 0, divSector_mrfCen = 0, divSector_prfCen = 0,
+            divSector_mrfSurr = 0, divSector_prfSurr = 0;
     RGC swapVar;
     double SOL = 0, SOR = 0, eSOL = 0, SOLGr = 0, SOLLs = 0;
     random_device rd;     // Only used once to initialise (seed) engine
@@ -669,7 +671,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     // How much the radius has progressed between two zones
     radProg = 0,
     // The individual lengths of areas for each of the divFactors under the probability graph
-    divLength = 0,
+    divLength_df = 0, divLength_mrfCen = 0, divLength_prfCen = 0, divLength_mrfSurr = 0, divLength_prfSurr = 0,
     // angle between point and origin
     angle = 0, angleDeg = 0;
     RGC** tmpRGCdets_l = (RGC**) malloc(perspHeight * sizeof(RGC*)),
@@ -757,25 +759,125 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 radProg = (((double)(SOL - pow(rgcparams.foveaWidth, 2)) / (double)(pow(tillPara, 2) - pow(rgcparams.foveaWidth, 2))));
 
                 // Then we calculate the length of the subdivisions within the band
-                divLength = 1 / (float)((rgcparams.divFactors[1] - rgcparams.divFactors[0]));
+                divLength_df = 1 / (float)((rgcparams.divFactors[1] - rgcparams.divFactors[0]));
+                divLength_mrfCen = 1 / (float)((paraCenSide_m - fovCenSide_m) > 0 ? (paraCenSide_m - fovCenSide_m) : 1);
+                divLength_mrfSurr = 1 / (float)((paraSurrSide_m - fovSurrSide_m) > 0 ? (paraSurrSide_m - fovSurrSide_m) : 1);
+                divLength_prfCen = 1 / (float)((paraCenSide_p - fovCenSide_p) > 0 ? (paraCenSide_p - fovCenSide_p) : 1);
+                divLength_prfSurr = 1 / (float)((paraSurrSide_p - fovSurrSide_p) > 0 ? (paraSurrSide_p - fovSurrSide_p) : 1);
+
+                // Calculation of respective RF sectors
+                divSector_mrfCen = (int)(radProg / divLength_mrfCen);
+                divSector_mrfSurr = (int)(radProg / divLength_mrfSurr);
+                divSector_prfCen = (int)(radProg / divLength_prfCen);
+                divSector_prfSurr = (int)(radProg / divLength_prfSurr);
                 mostProb = (int)(radProg * (float)((rgcparams.divFactors[1] - rgcparams.divFactors[0]) + 1));
 
-                // If it's the last band
-                if(radProg > 1 - divLength) {
-                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[1];
-                    else divR = rgcparams.divFactors[1] - 1;
+                currRand = uni(rng);
+                // ------------ Midget Centre ------------
+                if(divLength_mrfCen == 1){
+                    tmpCenSide_m = paraCenSide_m;
+                }else {
+                    if(radProg > 1 - divLength_mrfCen){
+                        if (currRand < ((radProg - (1 - divLength_mrfCen)) / divLength_mrfCen)) {
+                            tmpCenSide_m = paraCenSide_m;
+                        }
+                        else {
+                            tmpCenSide_m = paraCenSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfCen * divLength_mrfCen)) / divLength_mrfCen)){
+                            tmpCenSide_m = fovCenSide_m + divSector_mrfCen;
+                        } else {
+                            tmpCenSide_m = fovCenSide_m + divSector_mrfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Midget Surround------------
+                if(divLength_mrfSurr == 1){
+                    tmpSurrSide_m = paraSurrSide_m;
+                } else {
+                    if(radProg > 1 - divLength_mrfSurr){
+                        if (currRand < ((radProg - (1 - divLength_mrfSurr)) / divLength_mrfSurr)) {
+                            tmpSurrSide_m = paraSurrSide_m;
+                        }
+                        else {
+                            tmpSurrSide_m = paraSurrSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfSurr * divLength_mrfSurr)) / divLength_mrfSurr)){
+                            tmpSurrSide_m = fovSurrSide_m + divSector_mrfSurr;
+                        } else {
+                            tmpSurrSide_m = fovSurrSide_m + divSector_mrfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Centre ------------
+                if(divLength_prfCen == 1){
+                    tmpCenSide_p = paraCenSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfCen){
+                        if (currRand < ((radProg - (1 - divLength_prfCen)) / divLength_prfCen)) {
+                            tmpCenSide_p = paraCenSide_p;
+                        }
+                        else {
+                            tmpCenSide_p = paraCenSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfCen * divLength_prfCen)) / divLength_prfCen)){
+                            tmpCenSide_p = fovCenSide_p + divSector_prfCen;
+                        } else {
+                            tmpCenSide_p = fovCenSide_p + divSector_prfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Surround ------------
+                if(divLength_prfSurr == 1){
+                    tmpSurrSide_p = paraSurrSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfSurr){
+                        if (currRand < ((radProg - (1 - divLength_prfSurr)) / divLength_prfSurr)) {
+                            tmpSurrSide_p = paraSurrSide_p;
+                        }
+                        else {
+                            tmpSurrSide_p = paraSurrSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfSurr * divLength_prfSurr)) / divLength_prfSurr)){
+                            tmpSurrSide_p = fovSurrSide_p + divSector_prfSurr;
+                        } else {
+                            tmpSurrSide_p = fovSurrSide_p + divSector_prfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------- For divFactors -------------
+                // Last band
+                if(radProg > 1 - divLength_df) {
+                    if (currRand < ((radProg - (1 - divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[1];
+                    }
+                    else {
+                        divR = rgcparams.divFactors[1] - 1;
+                    }
                 }
                     // all other bands
                 else {
 
                     // Finding out which sector of the band radius has progressed till
-                    divSector = (int)(radProg / divLength);
+                    divSector_df = (int)(radProg / divLength_df);
 
-                    // If currRand is lesser than the radius's reach in the sector
-                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[0] + divSector;
+                    // If currRand is greater than the radius's reach in the sector
+                    if (currRand > ((radProg - ((float)divSector_df * divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[0] + divSector_df;
+                    }
 
-                        // if currRand is greater
-                    else divR = rgcparams.divFactors[0] + divSector + 1;
+                        // if currRand is lesser
+                    else {
+                        divR = rgcparams.divFactors[0] + divSector_df + 1;
+                    }
                 }
 
                 if(i % divR == 0 && j % divR == 0){
@@ -789,14 +891,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.95){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 8;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 10;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 3;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -817,14 +919,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.95){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 8;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 10;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 3;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 3;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -851,24 +953,123 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 radProg = (((double)(SOL - pow(tillPara, 2)) / (double)(pow(tillPeri, 2) - pow(tillPara, 2))));
 
                 // Then we calculate the length of the subdivisions within the band
-                divLength = 1 / (float)((rgcparams.divFactors[2] - rgcparams.divFactors[1]));
+                divLength_df = 1 / (float)((rgcparams.divFactors[2] - rgcparams.divFactors[1]));
+                divLength_mrfCen = 1 / (float)((periCenSide_m - paraCenSide_m) > 0 ? (periCenSide_m - paraCenSide_m) : 1);
+                divLength_mrfSurr = 1 / (float)((periSurrSide_m - paraSurrSide_m) > 0 ? (periSurrSide_m - paraSurrSide_m) : 1);
+                divLength_prfCen = 1 / (float)((periCenSide_p - paraCenSide_p) > 0 ? (periCenSide_p - paraCenSide_p) : 1);
+                divLength_prfSurr = 1 / (float)((periSurrSide_p - paraSurrSide_p) > 0 ? (periSurrSide_p - paraSurrSide_p) : 1);
+
+                // Calculation of respective RF sectors
+                divSector_mrfCen = (int)(radProg / divLength_mrfCen);
+                divSector_mrfSurr = (int)(radProg / divLength_mrfSurr);
+                divSector_prfCen = (int)(radProg / divLength_prfCen);
+                divSector_prfSurr = (int)(radProg / divLength_prfSurr);
+
+                currRand = uni(rng);
+                // ------------ Midget Centre ------------
+                if(divLength_mrfCen == 1){
+                    tmpCenSide_m = periCenSide_m;
+                }else {
+                    if(radProg > 1 - divLength_mrfCen){
+                        if (currRand < ((radProg - (1 - divLength_mrfCen)) / divLength_mrfCen)) {
+                            tmpCenSide_m = periCenSide_m;
+                        }
+                        else {
+                            tmpCenSide_m = periCenSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfCen * divLength_mrfCen)) / divLength_mrfCen)){
+                            tmpCenSide_m = paraCenSide_m + divSector_mrfCen;
+                        } else {
+                            tmpCenSide_m = paraCenSide_m + divSector_mrfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Midget Surround------------
+                if(divLength_mrfSurr == 1){
+                    tmpSurrSide_m = periSurrSide_m;
+                } else {
+                    if(radProg > 1 - divLength_mrfSurr){
+                        if (currRand < ((radProg - (1 - divLength_mrfSurr)) / divLength_mrfSurr)) {
+                            tmpSurrSide_m = periSurrSide_m;
+                        }
+                        else {
+                            tmpSurrSide_m = periSurrSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfSurr * divLength_mrfSurr)) / divLength_mrfSurr)){
+                            tmpSurrSide_m = paraSurrSide_m + divSector_mrfSurr;
+                        } else {
+                            tmpSurrSide_m = paraSurrSide_m + divSector_mrfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Centre ------------
+                if(divLength_prfCen == 1){
+                    tmpCenSide_p = periCenSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfCen){
+                        if (currRand < ((radProg - (1 - divLength_prfCen)) / divLength_prfCen)) {
+                            tmpCenSide_p = periCenSide_p;
+                        }
+                        else {
+                            tmpCenSide_p = periCenSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfCen * divLength_prfCen)) / divLength_prfCen)){
+                            tmpCenSide_p = paraCenSide_p + divSector_prfCen;
+                        } else {
+                            tmpCenSide_p = paraCenSide_p + divSector_prfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Surround ------------
+                if(divLength_prfSurr == 1){
+                    tmpSurrSide_p = periSurrSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfSurr){
+                        if (currRand < ((radProg - (1 - divLength_prfSurr)) / divLength_prfSurr)) {
+                            tmpSurrSide_p = periSurrSide_p;
+                        }
+                        else {
+                            tmpSurrSide_p = periSurrSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfSurr * divLength_prfSurr)) / divLength_prfSurr)){
+                            tmpSurrSide_p = paraSurrSide_p + divSector_prfSurr;
+                        } else {
+                            tmpSurrSide_p = paraSurrSide_p + divSector_prfSurr + 1;
+                        }
+                    }
+                }
 
                 // If it's the last band
-                if(radProg > 1 - divLength) {
-                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[2];
-                    else divR = rgcparams.divFactors[2] - 1;
+                if(radProg > 1 - divLength_df) {
+                    if (currRand < ((radProg - (1 - divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[2];
+                    }
+                    else {
+                        divR = rgcparams.divFactors[2] - 1;
+                    }
                 }
                     // all other bands
                 else {
 
                     // Finding out which sector of the band radius has progressed till
-                    divSector = (int)(radProg / divLength);
+                    divSector_df = (int)(radProg / divLength_df);
 
                     // If currRand is lesser than the radius's reach in the sector
-                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[1] + divSector;
+                    if (currRand > ((radProg - ((float)divSector_df * divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[1] + divSector_df;
+                    }
 
                         // if currRand is greater
-                    else divR = rgcparams.divFactors[1] + divSector + 1;
+                    else {
+                        divR = rgcparams.divFactors[1] + divSector_df + 1;
+                    }
                 }
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
@@ -881,14 +1082,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.9){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 14;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 3;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 4;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -909,14 +1110,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.9){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 14;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 3;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 4;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -944,25 +1145,123 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 radProg = (((double)(SOL - pow(tillPeri, 2)) / (double)(pow(tillOZ1, 2) - pow(tillPeri, 2))));
 
                 // Then we calculate the length of the subdivisions within the band
-                divLength = 1 / (float)((rgcparams.divFactors[3] - rgcparams.divFactors[2]));
+                divLength_df = 1 / (float)((rgcparams.divFactors[3] - rgcparams.divFactors[2]));
+                divLength_mrfCen = 1 / (float)((oz1CenSide_m - periCenSide_m) > 0 ? (oz1CenSide_m - periCenSide_m) : 1);
+                divLength_mrfSurr = 1 / (float)((oz1SurrSide_m - periSurrSide_m) > 0 ? (oz1SurrSide_m - periSurrSide_m) : 1);
+                divLength_prfCen = 1 / (float)((oz1CenSide_p - periCenSide_p) > 0 ? (oz1CenSide_p - periCenSide_p) : 1);
+                divLength_prfSurr = 1 / (float)((oz1SurrSide_p - periSurrSide_p) > 0 ? (oz1SurrSide_p - periSurrSide_p) : 1);
 
+                // Calculation of respective RF sectors
+                divSector_mrfCen = (int)(radProg / divLength_mrfCen);
+                divSector_mrfSurr = (int)(radProg / divLength_mrfSurr);
+                divSector_prfCen = (int)(radProg / divLength_prfCen);
+                divSector_prfSurr = (int)(radProg / divLength_prfSurr);
+
+                currRand = uni(rng);
+                // ------------ Midget Centre ------------
+                if(divLength_mrfCen == 1){
+                    tmpCenSide_m = oz1CenSide_m;
+                }else {
+                    if(radProg > 1 - divLength_mrfCen){
+                        if (currRand < ((radProg - (1 - divLength_mrfCen)) / divLength_mrfCen)) {
+                            tmpCenSide_m = oz1CenSide_m;
+                        }
+                        else {
+                            tmpCenSide_m = oz1CenSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfCen * divLength_mrfCen)) / divLength_mrfCen)){
+                            tmpCenSide_m = periCenSide_m + divSector_mrfCen;
+                        } else {
+                            tmpCenSide_m = periCenSide_m + divSector_mrfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Midget Surround------------
+                if(divLength_mrfSurr == 1){
+                    tmpSurrSide_m = oz1SurrSide_m;
+                } else {
+                    if(radProg > 1 - divLength_mrfSurr){
+                        if (currRand < ((radProg - (1 - divLength_mrfSurr)) / divLength_mrfSurr)) {
+                            tmpSurrSide_m = oz1SurrSide_m;
+                        }
+                        else {
+                            tmpSurrSide_m = oz1SurrSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfSurr * divLength_mrfSurr)) / divLength_mrfSurr)){
+                            tmpSurrSide_m = periSurrSide_m + divSector_mrfSurr;
+                        } else {
+                            tmpSurrSide_m = periSurrSide_m + divSector_mrfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Centre ------------
+                if(divLength_prfCen == 1){
+                    tmpCenSide_p = oz1CenSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfCen){
+                        if (currRand < ((radProg - (1 - divLength_prfCen)) / divLength_prfCen)) {
+                            tmpCenSide_p = oz1CenSide_p;
+                        }
+                        else {
+                            tmpCenSide_p = oz1CenSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfCen * divLength_prfCen)) / divLength_prfCen)){
+                            tmpCenSide_p = periCenSide_p + divSector_prfCen;
+                        } else {
+                            tmpCenSide_p = periCenSide_p + divSector_prfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Surround ------------
+                if(divLength_prfSurr == 1){
+                    tmpSurrSide_p = oz1SurrSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfSurr){
+                        if (currRand < ((radProg - (1 - divLength_prfSurr)) / divLength_prfSurr)) {
+                            tmpSurrSide_p = oz1SurrSide_p;
+                        }
+                        else {
+                            tmpSurrSide_p = oz1SurrSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfSurr * divLength_prfSurr)) / divLength_prfSurr)){
+                            tmpSurrSide_p = periSurrSide_p + divSector_prfSurr;
+                        } else {
+                            tmpSurrSide_p = periSurrSide_p + divSector_prfSurr + 1;
+                        }
+                    }
+                }
 
                 // If it's the last band
-                if(radProg > 1 - divLength) {
-                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[3];
-                    else divR = rgcparams.divFactors[3] - 1;
+                if(radProg > 1 - divLength_df) {
+                    if (currRand < ((radProg - (1 - divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[3];
+                    }
+                    else {
+                        divR = rgcparams.divFactors[3] - 1;
+                    }
                 }
                     // all other bands
                 else {
 
                     // Finding out which sector of the band radius has progressed till
-                    divSector = (int)(radProg / divLength);
+                    divSector_df = (int)(radProg / divLength_df);
 
                     // If currRand is lesser than the radius's reach in the sector
-                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[2] + divSector;
+                    if (currRand > ((radProg - ((float)divSector_df * divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[2] + divSector_df;
+                    }
 
                         // if currRand is greater
-                    else divR = rgcparams.divFactors[2] + divSector + 1;
+                    else {
+                        divR = rgcparams.divFactors[2] + divSector_df + 1;
+                    }
                 }
 
                 if(i % divR == 0 && j % divR == 0){
@@ -976,14 +1275,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.8){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 15;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 18;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 4;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 5;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1004,14 +1303,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.8){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 15;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 18;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 4;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 5;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1039,24 +1338,123 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 radProg = (((double)(SOL - pow(tillOZ1, 2)) / (double)(pow(tillOZ2, 2) - pow(tillOZ1, 2))));
 
                 // Then we calculate the length of the subdivisions within the band
-                divLength = 1 / (float)((rgcparams.divFactors[4] - rgcparams.divFactors[3]));
+                divLength_df = 1 / (float)((rgcparams.divFactors[4] - rgcparams.divFactors[3]));
+                divLength_mrfCen = 1 / (float)((oz2CenSide_m - oz1CenSide_m) > 0 ? (oz2CenSide_m - oz1CenSide_m) : 1);
+                divLength_mrfSurr = 1 / (float)((oz2SurrSide_m - oz1SurrSide_m) > 0 ? (oz2SurrSide_m - oz1SurrSide_m) : 1);
+                divLength_prfCen = 1 / (float)((oz2CenSide_p - oz1CenSide_p) > 0 ? (oz2CenSide_p - oz1CenSide_p) : 1);
+                divLength_prfSurr = 1 / (float)((oz2SurrSide_p - oz1SurrSide_p) > 0 ? (oz2SurrSide_p - oz1SurrSide_p) : 1);
+
+                // Calculation of respective RF sectors
+                divSector_mrfCen = (int)(radProg / divLength_mrfCen);
+                divSector_mrfSurr = (int)(radProg / divLength_mrfSurr);
+                divSector_prfCen = (int)(radProg / divLength_prfCen);
+                divSector_prfSurr = (int)(radProg / divLength_prfSurr);
+
+                currRand = uni(rng);
+                // ------------ Midget Centre ------------
+                if(divLength_mrfCen == 1){
+                    tmpCenSide_m = oz2CenSide_m;
+                }else {
+                    if(radProg > 1 - divLength_mrfCen){
+                        if (currRand < ((radProg - (1 - divLength_mrfCen)) / divLength_mrfCen)) {
+                            tmpCenSide_m = oz2CenSide_m;
+                        }
+                        else {
+                            tmpCenSide_m = oz2CenSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfCen * divLength_mrfCen)) / divLength_mrfCen)){
+                            tmpCenSide_m = oz1CenSide_m + divSector_mrfCen;
+                        } else {
+                            tmpCenSide_m = oz1CenSide_m + divSector_mrfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Midget Surround------------
+                if(divLength_mrfSurr == 1){
+                    tmpSurrSide_m = oz2SurrSide_m;
+                } else {
+                    if(radProg > 1 - divLength_mrfSurr){
+                        if (currRand < ((radProg - (1 - divLength_mrfSurr)) / divLength_mrfSurr)) {
+                            tmpSurrSide_m = oz2SurrSide_m;
+                        }
+                        else {
+                            tmpSurrSide_m = oz2SurrSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfSurr * divLength_mrfSurr)) / divLength_mrfSurr)){
+                            tmpSurrSide_m = oz1SurrSide_m + divSector_mrfSurr;
+                        } else {
+                            tmpSurrSide_m = oz1SurrSide_m + divSector_mrfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Centre ------------
+                if(divLength_prfCen == 1){
+                    tmpCenSide_p = oz2CenSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfCen){
+                        if (currRand < ((radProg - (1 - divLength_prfCen)) / divLength_prfCen)) {
+                            tmpCenSide_p = oz2CenSide_p;
+                        }
+                        else {
+                            tmpCenSide_p = oz2CenSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfCen * divLength_prfCen)) / divLength_prfCen)){
+                            tmpCenSide_p = oz1CenSide_p + divSector_prfCen;
+                        } else {
+                            tmpCenSide_p = oz1CenSide_p + divSector_prfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Surround ------------
+                if(divLength_prfSurr == 1){
+                    tmpSurrSide_p = oz2SurrSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfSurr){
+                        if (currRand < ((radProg - (1 - divLength_prfSurr)) / divLength_prfSurr)) {
+                            tmpSurrSide_p = oz2SurrSide_p;
+                        }
+                        else {
+                            tmpSurrSide_p = oz2SurrSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfSurr * divLength_prfSurr)) / divLength_prfSurr)){
+                            tmpSurrSide_p = oz1SurrSide_p + divSector_prfSurr;
+                        } else {
+                            tmpSurrSide_p = oz1SurrSide_p + divSector_prfSurr + 1;
+                        }
+                    }
+                }
 
                 // If it's the last band
-                if(radProg > 1 - divLength) {
-                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[4];
-                    else divR = rgcparams.divFactors[4] - 1;
+                if(radProg > 1 - divLength_df) {
+                    if (currRand < ((radProg - (1 - divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[4];
+                    }
+                    else {
+                        divR = rgcparams.divFactors[4] - 1;
+                    }
                 }
                     // all other bands
                 else {
 
                     // Finding out which sector of the band radius has progressed till
-                    divSector = (int)(radProg / divLength);
+                    divSector_df = (int)(radProg / divLength_df);
 
                     // If currRand is lesser than the radius's reach in the sector
-                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[3] + divSector;
+                    if (currRand > ((radProg - ((float)divSector_df * divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[3] + divSector_df;
+                    }
 
                         // if currRand is greater
-                    else divR = rgcparams.divFactors[3] + divSector + 1;
+                    else {
+                        divR = rgcparams.divFactors[3] + divSector_df + 1;
+                    }
                 }
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
@@ -1069,14 +1467,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.7){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 24;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1097,14 +1495,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.7){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 24;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1140,29 +1538,128 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 radProg = ((double)((SOL) - SOLLs) / (double)(SOLGr - SOLLs));
 
                 // Then we calculate the length of the subdivisions within the band
-                divLength = 1 / (float)((rgcparams.divFactors[4] - rgcparams.divFactors[3]));
+                divLength_df = 1 / (float)((rgcparams.divFactors[4] - rgcparams.divFactors[3]));
+                divLength_mrfCen = 1 / (float)((oz2CenSide_m - oz1CenSide_m) > 0 ? (oz2CenSide_m - oz1CenSide_m) : 1);
+                divLength_mrfSurr = 1 / (float)((oz2SurrSide_m - oz1SurrSide_m) > 0 ? (oz2SurrSide_m - oz1SurrSide_m) : 1);
+                divLength_prfCen = 1 / (float)((oz2CenSide_p - oz1CenSide_p) > 0 ? (oz2CenSide_p - oz1CenSide_p) : 1);
+                divLength_prfSurr = 1 / (float)((oz2SurrSide_p - oz1SurrSide_p) > 0 ? (oz2SurrSide_p - oz1SurrSide_p) : 1);
+
+                // Calculation of respective RF sectors
+                divSector_mrfCen = (int)(radProg / divLength_mrfCen);
+                divSector_mrfSurr = (int)(radProg / divLength_mrfSurr);
+                divSector_prfCen = (int)(radProg / divLength_prfCen);
+                divSector_prfSurr = (int)(radProg / divLength_prfSurr);
+
+                currRand = uni(rng);
+                // ------------ Midget Centre ------------
+                if(divLength_mrfCen == 1){
+                    tmpCenSide_m = oz2CenSide_m;
+                }else {
+                    if(radProg > 1 - divLength_mrfCen){
+                        if (currRand < ((radProg - (1 - divLength_mrfCen)) / divLength_mrfCen)) {
+                            tmpCenSide_m = oz2CenSide_m;
+                        }
+                        else {
+                            tmpCenSide_m = oz2CenSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfCen * divLength_mrfCen)) / divLength_mrfCen)){
+                            tmpCenSide_m = oz1CenSide_m + divSector_mrfCen;
+                        } else {
+                            tmpCenSide_m = oz1CenSide_m + divSector_mrfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Midget Surround------------
+                if(divLength_mrfSurr == 1){
+                    tmpSurrSide_m = oz2SurrSide_m;
+                } else {
+                    if(radProg > 1 - divLength_mrfSurr){
+                        if (currRand < ((radProg - (1 - divLength_mrfSurr)) / divLength_mrfSurr)) {
+                            tmpSurrSide_m = oz2SurrSide_m;
+                        }
+                        else {
+                            tmpSurrSide_m = oz2SurrSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfSurr * divLength_mrfSurr)) / divLength_mrfSurr)){
+                            tmpSurrSide_m = oz1SurrSide_m + divSector_mrfSurr;
+                        } else {
+                            tmpSurrSide_m = oz1SurrSide_m + divSector_mrfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Centre ------------
+                if(divLength_prfCen == 1){
+                    tmpCenSide_p = oz2CenSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfCen){
+                        if (currRand < ((radProg - (1 - divLength_prfCen)) / divLength_prfCen)) {
+                            tmpCenSide_p = oz2CenSide_p;
+                        }
+                        else {
+                            tmpCenSide_p = oz2CenSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfCen * divLength_prfCen)) / divLength_prfCen)){
+                            tmpCenSide_p = oz1CenSide_p + divSector_prfCen;
+                        } else {
+                            tmpCenSide_p = oz1CenSide_p + divSector_prfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Surround ------------
+                if(divLength_prfSurr == 1){
+                    tmpSurrSide_p = oz2SurrSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfSurr){
+                        if (currRand < ((radProg - (1 - divLength_prfSurr)) / divLength_prfSurr)) {
+                            tmpSurrSide_p = oz2SurrSide_p;
+                        }
+                        else {
+                            tmpSurrSide_p = oz2SurrSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfSurr * divLength_prfSurr)) / divLength_prfSurr)){
+                            tmpSurrSide_p = oz1SurrSide_p + divSector_prfSurr;
+                        } else {
+                            tmpSurrSide_p = oz1SurrSide_p + divSector_prfSurr + 1;
+                        }
+                    }
+                }
 
                 // If it's the last band
-                if(radProg > 1 - divLength) {
-                    divSector = (int)(radProg / divLength);
-                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[4];
-                    else divR = rgcparams.divFactors[4] - 1;
+                if(radProg > 1 - divLength_df) {
+                    divSector_df = (int)(radProg / divLength_df);
+                    if (currRand < ((radProg - (1 - divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[4];
+                    }
+                    else {
+                        divR = rgcparams.divFactors[4] - 1;
+                    }
                 }
                     // all other bands
                 else {
 
                     // Finding out which sector of the band radius has progressed till
-                    divSector = (int)(radProg / divLength);
+                    divSector_df = (int)(radProg / divLength_df);
 
                     // If currRand is lesser than the radius's reach in the sector
-                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[3] + divSector;
+                    if (currRand > ((radProg - ((float)divSector_df * divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[3] + divSector_df;
+                    }
 
                         // if currRand is greater
-                    else divR = rgcparams.divFactors[3] + divSector + 1;
+                    else {
+                        divR = rgcparams.divFactors[3] + divSector_df + 1;
+                    }
                 }
 //                 cout << "SOL : " << SOL << " || SOLGr : " << SOLGr << " || SolLs : " << SOLLs << " || ElXLs : " << ElXLs <<
 //                                        " || tan : "  << tan(angle) << " || ElYLs : " << ElYLs << " || x : " << j - fovx << " || y :" << diffY << " || angle : " << angleDeg << " || divL : " <<
-//                                        divLength <<  " || sector : " << divSector << " || radProg : " << radProg << " || divR : " << divR << endl;
+//                                        divLength_df <<  " || sector : " << divSector_df << " || radProg : " << radProg << " || divR : " << divR << endl;
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
@@ -1174,14 +1671,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.7){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 24;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1202,14 +1699,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.7){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 24;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 24;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 12;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1237,24 +1734,123 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 radProg = (((double)(SOL - pow(tillOZ2, 2)) / (double)(pow(tillOZ3, 2) - pow(tillOZ2, 2))));
 
                 // Then we calculate the length of the subdivisions within the band
-                divLength = 1 / (float)((rgcparams.divFactors[5] - rgcparams.divFactors[4]));
+                divLength_df = 1 / (float)((rgcparams.divFactors[5] - rgcparams.divFactors[4]));
+                divLength_mrfCen = 1 / (float)((oz3CenSide_m - oz2CenSide_m) > 0 ? (oz3CenSide_m - oz2CenSide_m) : 1);
+                divLength_mrfSurr = 1 / (float)((oz3SurrSide_m - oz2SurrSide_m) > 0 ? (oz3SurrSide_m - oz2SurrSide_m) : 1);
+                divLength_prfCen = 1 / (float)((oz3CenSide_p - oz2CenSide_p) > 0 ? (oz3CenSide_p - oz2CenSide_p) : 1);
+                divLength_prfSurr = 1 / (float)((oz3SurrSide_p - oz2SurrSide_p) > 0 ? (oz3SurrSide_p - oz2SurrSide_p) : 1);
+
+                // Calculation of respective RF sectors
+                divSector_mrfCen = (int)(radProg / divLength_mrfCen);
+                divSector_mrfSurr = (int)(radProg / divLength_mrfSurr);
+                divSector_prfCen = (int)(radProg / divLength_prfCen);
+                divSector_prfSurr = (int)(radProg / divLength_prfSurr);
+
+                currRand = uni(rng);
+                // ------------ Midget Centre ------------
+                if(divLength_mrfCen == 1){
+                    tmpCenSide_m = oz3CenSide_m;
+                }else {
+                    if(radProg > 1 - divLength_mrfCen){
+                        if (currRand < ((radProg - (1 - divLength_mrfCen)) / divLength_mrfCen)) {
+                            tmpCenSide_m = oz3CenSide_m;
+                        }
+                        else {
+                            tmpCenSide_m = oz3CenSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfCen * divLength_mrfCen)) / divLength_mrfCen)){
+                            tmpCenSide_m = oz2CenSide_m + divSector_mrfCen;
+                        } else {
+                            tmpCenSide_m = oz2CenSide_m + divSector_mrfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Midget Surround------------
+                if(divLength_mrfSurr == 1){
+                    tmpSurrSide_m = oz3SurrSide_m;
+                } else {
+                    if(radProg > 1 - divLength_mrfSurr){
+                        if (currRand < ((radProg - (1 - divLength_mrfSurr)) / divLength_mrfSurr)) {
+                            tmpSurrSide_m = oz3SurrSide_m;
+                        }
+                        else {
+                            tmpSurrSide_m = oz3SurrSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfSurr * divLength_mrfSurr)) / divLength_mrfSurr)){
+                            tmpSurrSide_m = oz2SurrSide_m + divSector_mrfSurr;
+                        } else {
+                            tmpSurrSide_m = oz2SurrSide_m + divSector_mrfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Centre ------------
+                if(divLength_prfCen == 1){
+                    tmpCenSide_p = oz3CenSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfCen){
+                        if (currRand < ((radProg - (1 - divLength_prfCen)) / divLength_prfCen)) {
+                            tmpCenSide_p = oz3CenSide_p;
+                        }
+                        else {
+                            tmpCenSide_p = oz3CenSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfCen * divLength_prfCen)) / divLength_prfCen)){
+                            tmpCenSide_p = oz2CenSide_p + divSector_prfCen;
+                        } else {
+                            tmpCenSide_p = oz2CenSide_p + divSector_prfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Surround ------------
+                if(divLength_prfSurr == 1){
+                    tmpSurrSide_p = oz3SurrSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfSurr){
+                        if (currRand < ((radProg - (1 - divLength_prfSurr)) / divLength_prfSurr)) {
+                            tmpSurrSide_p = oz3SurrSide_p;
+                        }
+                        else {
+                            tmpSurrSide_p = oz3SurrSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfSurr * divLength_prfSurr)) / divLength_prfSurr)){
+                            tmpSurrSide_p = oz2SurrSide_p + divSector_prfSurr;
+                        } else {
+                            tmpSurrSide_p = oz2SurrSide_p + divSector_prfSurr + 1;
+                        }
+                    }
+                }
 
                 // If it's the last band
-                if(radProg > 1 - divLength) {
-                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[5];
-                    else divR = rgcparams.divFactors[5] - 1;
+                if(radProg > 1 - divLength_df) {
+                    if (currRand < ((radProg - (1 - divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[5];
+                    }
+                    else {
+                        divR = rgcparams.divFactors[5] - 1;
+                    }
                 }
                     // all other bands
                 else {
 
                     // Finding out which sector of the band radius has progressed till
-                    divSector = (int)(radProg / divLength);
+                    divSector_df = (int)(radProg / divLength_df);
 
                     // If currRand is lesser than the radius's reach in the sector
-                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[4] + divSector;
+                    if (currRand > ((radProg - ((float)divSector_df * divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[4] + divSector_df;
+                    }
 
                         // if currRand is greater
-                    else divR = rgcparams.divFactors[4] + divSector + 1;
+                    else {
+                        divR = rgcparams.divFactors[4] + divSector_df + 1;
+                    }
                 }
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
@@ -1267,14 +1863,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.6){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 36;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 20;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1295,14 +1891,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.6){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 36;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 20;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1340,26 +1936,125 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
 
                 // Then we calculate the length of the subdivisions within the band
-                divLength = 1 / (float)((rgcparams.divFactors[5] - rgcparams.divFactors[4]));
+                divLength_df = 1 / (float)((rgcparams.divFactors[5] - rgcparams.divFactors[4]));
+                divLength_mrfCen = 1 / (float)((oz3CenSide_m - oz2CenSide_m) > 0 ? (oz3CenSide_m - oz2CenSide_m) : 1);
+                divLength_mrfSurr = 1 / (float)((oz3SurrSide_m - oz2SurrSide_m) > 0 ? (oz3SurrSide_m - oz2SurrSide_m) : 1);
+                divLength_prfCen = 1 / (float)((oz3CenSide_p - oz2CenSide_p) > 0 ? (oz3CenSide_p - oz2CenSide_p) : 1);
+                divLength_prfSurr = 1 / (float)((oz3SurrSide_p - oz2SurrSide_p) > 0 ? (oz3SurrSide_p - oz2SurrSide_p) : 1);
+
+                // Calculation of respective RF sectors
+                divSector_mrfCen = (int)(radProg / divLength_mrfCen);
+                divSector_mrfSurr = (int)(radProg / divLength_mrfSurr);
+                divSector_prfCen = (int)(radProg / divLength_prfCen);
+                divSector_prfSurr = (int)(radProg / divLength_prfSurr);
+
+                currRand = uni(rng);
+                // ------------ Midget Centre ------------
+                if(divLength_mrfCen == 1){
+                    tmpCenSide_m = oz3CenSide_m;
+                }else {
+                    if(radProg > 1 - divLength_mrfCen){
+                        if (currRand < ((radProg - (1 - divLength_mrfCen)) / divLength_mrfCen)) {
+                            tmpCenSide_m = oz3CenSide_m;
+                        }
+                        else {
+                            tmpCenSide_m = oz3CenSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfCen * divLength_mrfCen)) / divLength_mrfCen)){
+                            tmpCenSide_m = oz2CenSide_m + divSector_mrfCen;
+                        } else {
+                            tmpCenSide_m = oz2CenSide_m + divSector_mrfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Midget Surround------------
+                if(divLength_mrfSurr == 1){
+                    tmpSurrSide_m = oz3SurrSide_m;
+                } else {
+                    if(radProg > 1 - divLength_mrfSurr){
+                        if (currRand < ((radProg - (1 - divLength_mrfSurr)) / divLength_mrfSurr)) {
+                            tmpSurrSide_m = oz3SurrSide_m;
+                        }
+                        else {
+                            tmpSurrSide_m = oz3SurrSide_m - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_mrfSurr * divLength_mrfSurr)) / divLength_mrfSurr)){
+                            tmpSurrSide_m = oz2SurrSide_m + divSector_mrfSurr;
+                        } else {
+                            tmpSurrSide_m = oz2SurrSide_m + divSector_mrfSurr + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Centre ------------
+                if(divLength_prfCen == 1){
+                    tmpCenSide_p = oz3CenSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfCen){
+                        if (currRand < ((radProg - (1 - divLength_prfCen)) / divLength_prfCen)) {
+                            tmpCenSide_p = oz3CenSide_p;
+                        }
+                        else {
+                            tmpCenSide_p = oz3CenSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfCen * divLength_prfCen)) / divLength_prfCen)){
+                            tmpCenSide_p = oz2CenSide_p + divSector_prfCen;
+                        } else {
+                            tmpCenSide_p = oz2CenSide_p + divSector_prfCen + 1;
+                        }
+                    }
+                }
+
+                // ------------ Parasol Surround ------------
+                if(divLength_prfSurr == 1){
+                    tmpSurrSide_p = oz3SurrSide_p;
+                } else {
+                    if(radProg > 1 - divLength_prfSurr){
+                        if (currRand < ((radProg - (1 - divLength_prfSurr)) / divLength_prfSurr)) {
+                            tmpSurrSide_p = oz3SurrSide_p;
+                        }
+                        else {
+                            tmpSurrSide_p = oz3SurrSide_p - 1;
+                        }
+                    } else {
+                        if (currRand > ((radProg - ((float)divSector_prfSurr * divLength_prfSurr)) / divLength_prfSurr)){
+                            tmpSurrSide_p = oz2SurrSide_p + divSector_prfSurr;
+                        } else {
+                            tmpSurrSide_p = oz2SurrSide_p + divSector_prfSurr + 1;
+                        }
+                    }
+                }
 
                 // If it's the last band
-                if(radProg > 1 - divLength) {
-                    divSector = (int)(radProg / divLength);
-                    if (currRand < ((radProg - (1 - divLength)) / divLength)) divR = rgcparams.divFactors[5];
-                    else divR = rgcparams.divFactors[5] - 1;
+                if(radProg > 1 - divLength_df) {
+                    divSector_df = (int)(radProg / divLength_df);
+                    if (currRand < ((radProg - (1 - divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[5];
+                    }
+                    else {
+                        divR = rgcparams.divFactors[5] - 1;
+                    }
                 }
                     // all other bands
                 else {
 
                     // Finding out which sector of the band radius has progressed till
-                    divSector = (int)(radProg / divLength);
+                    divSector_df = (int)(radProg / divLength_df);
 
 
                     // If currRand is lesser than the radius's reach in the sector
-                    if (currRand > ((radProg - ((float)divSector * divLength)) / divLength)) divR = rgcparams.divFactors[4] + divSector;
+                    if (currRand > ((radProg - ((float)divSector_df * divLength_df)) / divLength_df)) {
+                        divR = rgcparams.divFactors[4] + divSector_df;
+                    }
 
                         // if currRand is greater
-                    else divR = rgcparams.divFactors[4] + divSector + 1;
+                    else {
+                        divR = rgcparams.divFactors[4] + divSector_df + 1;
+                    }
                 }
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
@@ -1372,14 +2067,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.6){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 36;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 20;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
@@ -1400,14 +2095,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     if(currRand > 0.6){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 36;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 48;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
                         currRand = uni(rng);
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 20;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 20;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_m;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_m;
                         currRand = uni(rng);
                         if(currRand < 0.25) {
                             currRand = uni(rng);
