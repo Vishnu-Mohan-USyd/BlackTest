@@ -357,12 +357,18 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
     // Calculating center averages
     cenValL = cenSumL / cenIdeal;
 
-    if(RGCdet_l[posY][posX].type == MIDGET){
+    if(RGCdet_l[posY][posX].type == MIDGET && RGCdet_l[posY][posX].detType == LUM){
         perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
         perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 * (cenValL - surrValL)));
         perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
         perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
     }
+//    if(RGCdet_l[posY][posX].type == MIDGET && !(RGCdet_l[posY][posX].zone == FOV || RGCdet_l[posY][posX].zone == PARA)){
+//        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+//        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 * (cenValL - surrValL)));
+//        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+//        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+//    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     leftInputs[posY][posX] = RGCdet_l[posY][posX].perspX;
@@ -649,8 +655,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
             fovCenSide_m = 2, fovSurrSide_m = 5, fovCenSide_p = 6, fovSurrSide_p = 8,
             paraCenSide_m = 3, paraSurrSide_m = 10, paraCenSide_p = 8, paraSurrSide_p = 10,
-            periCenSide_m = 5, periSurrSide_m = 16, periCenSide_p = 12, periSurrSide_p = 14,
-            oz1CenSide_m = 10, oz1SurrSide_m = 20, oz1CenSide_p = 15, oz1SurrSide_p = 18,
+            periCenSide_m = 6, periSurrSide_m = 16, periCenSide_p = 12, periSurrSide_p = 14,
+            oz1CenSide_m = 8, oz1SurrSide_m = 20, oz1CenSide_p = 15, oz1SurrSide_p = 18,
             oz2CenSide_m = 14, oz2SurrSide_m = 40, oz2CenSide_p = 24, oz2SurrSide_p = 24,
             oz3CenSide_m = 20, oz3SurrSide_m = 60, oz3CenSide_p = 36, oz3SurrSide_p = 48,
             tmpCenSide_m = 0, tmpSurrSide_m = 0, tmpCenSide_p = 0, tmpSurrSide_p = 0;
