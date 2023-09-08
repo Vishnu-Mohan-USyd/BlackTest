@@ -152,17 +152,17 @@ void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS devicePara
     perspTest[(i * 4) + 2] = 0;
     perspTest[(i * 4) + 3] = 0;
 
-    if(((x / 20) % 2 == 0) && ((y / 20) % 2 == 0)){
-        perspLeft[(i * 4)] = 0;
-        perspLeft[(i * 4) + 1] = 0;
-        perspLeft[(i * 4) + 2] = 0;
-        perspLeft[(i * 4) + 3] = 0;
-    } else {
-        perspLeft[(i * 4)] = 255;
-        perspLeft[(i * 4) + 1] = 255;
-        perspLeft[(i * 4) + 2] = 255;
-        perspLeft[(i * 4) + 3] = 255;
-    }
+//    if(((x / 50) % 2 == 0) && ((y / 50) % 2 == 0)){
+//        perspLeft[(i * 4)] = 0;
+//        perspLeft[(i * 4) + 1] = 0;
+//        perspLeft[(i * 4) + 2] = 0;
+//        perspLeft[(i * 4) + 3] = 0;
+//    } else {
+//        perspLeft[(i * 4)] = 255;
+//        perspLeft[(i * 4) + 1] = 255;
+//        perspLeft[(i * 4) + 2] = 255;
+//        perspLeft[(i * 4) + 3] = 255;
+//    }
 }
 
 __global__
@@ -358,10 +358,10 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
     cenValL = cenSumL / cenIdeal;
 
     if(RGCdet_l[posY][posX].type == MIDGET){
-        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 *(cenValL - surrValL)));
-        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 * (cenValL - surrValL)));
-        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 *(cenValL - surrValL)));
-        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 10 *(cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 * (cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
     }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
@@ -648,7 +648,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
             OZ2ellipse = tillOZ2 + 600,
 
             fovCenSide_m = 2, fovSurrSide_m = 2, fovCenSide_p = 6, fovSurrSide_p = 8,
-            paraCenSide_m = 3, paraSurrSide_m = 3, paraCenSide_p = 8, paraSurrSide_p = 10,
+            paraCenSide_m = 2, paraSurrSide_m = 3, paraCenSide_p = 8, paraSurrSide_p = 10,
             periCenSide_m = 3, periSurrSide_m = 4, periCenSide_p = 12, periSurrSide_p = 14,
             oz1CenSide_m = 4, oz1SurrSide_m = 5, oz1CenSide_p = 15, oz1SurrSide_p = 18,
             oz2CenSide_m = 12, oz2SurrSide_m = 20, oz2CenSide_p = 24, oz2SurrSide_p = 24,
@@ -698,14 +698,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(currRand > 0.95){
                     tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
                     tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 6;
-                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 8;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = fovCenSide_p;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = fovSurrSide_p;
                 } else {
                     currRand = uni(rng);
                     tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = MIDGET;
                     tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
-                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = 2;
-                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = 2;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = fovCenSide_m;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = fovSurrSide_m;
                     currRand = uni(rng);
                     if(currRand < 0.25) {
                         currRand = uni(rng);
@@ -726,14 +726,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 if(currRand > 0.95){
                     tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
                     tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 6;
-                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 8;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = fovCenSide_p;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = fovSurrSide_p;
                 } else {
                     currRand = uni(rng);
                     tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = MIDGET;
                     tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
-                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = 2;
-                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = 2;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = fovCenSide_m;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = fovSurrSide_m;
                     currRand = uni(rng);
                     if(currRand < 0.25) {
                         currRand = uni(rng);
@@ -760,10 +760,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 // Then we calculate the length of the subdivisions within the band
                 divLength_df = 1 / (float)((rgcparams.divFactors[1] - rgcparams.divFactors[0]));
-                divLength_mrfCen = 1 / (float)((paraCenSide_m - fovCenSide_m) > 0 ? (paraCenSide_m - fovCenSide_m) : 1);
-                divLength_mrfSurr = 1 / (float)((paraSurrSide_m - fovSurrSide_m) > 0 ? (paraSurrSide_m - fovSurrSide_m) : 1);
-                divLength_prfCen = 1 / (float)((paraCenSide_p - fovCenSide_p) > 0 ? (paraCenSide_p - fovCenSide_p) : 1);
-                divLength_prfSurr = 1 / (float)((paraSurrSide_p - fovSurrSide_p) > 0 ? (paraSurrSide_p - fovSurrSide_p) : 1);
+                divLength_mrfCen = 1 / (float)((paraCenSide_m - fovCenSide_m) > 0 ? (paraCenSide_m - fovCenSide_m) : -1);
+                divLength_mrfSurr = 1 / (float)((paraSurrSide_m - fovSurrSide_m) > 0 ? (paraSurrSide_m - fovSurrSide_m) : -1);
+                divLength_prfCen = 1 / (float)((paraCenSide_p - fovCenSide_p) > 0 ? (paraCenSide_p - fovCenSide_p) : -1);
+                divLength_prfSurr = 1 / (float)((paraSurrSide_p - fovSurrSide_p) > 0 ? (paraSurrSide_p - fovSurrSide_p) : -1);
 
                 // Calculation of respective RF sectors
                 divSector_mrfCen = (int)(radProg / divLength_mrfCen);
@@ -774,7 +774,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 currRand = uni(rng);
                 // ------------ Midget Centre ------------
-                if(divLength_mrfCen == 1){
+                if(divLength_mrfCen == -1){
                     tmpCenSide_m = paraCenSide_m;
                 }else {
                     if(radProg > 1 - divLength_mrfCen){
@@ -794,7 +794,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Midget Surround------------
-                if(divLength_mrfSurr == 1){
+                if(divLength_mrfSurr == -1){
                     tmpSurrSide_m = paraSurrSide_m;
                 } else {
                     if(radProg > 1 - divLength_mrfSurr){
@@ -814,7 +814,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Centre ------------
-                if(divLength_prfCen == 1){
+                if(divLength_prfCen == -1){
                     tmpCenSide_p = paraCenSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfCen){
@@ -834,7 +834,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Surround ------------
-                if(divLength_prfSurr == 1){
+                if(divLength_prfSurr == -1){
                     tmpSurrSide_p = paraSurrSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfSurr){
@@ -954,10 +954,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 // Then we calculate the length of the subdivisions within the band
                 divLength_df = 1 / (float)((rgcparams.divFactors[2] - rgcparams.divFactors[1]));
-                divLength_mrfCen = 1 / (float)((periCenSide_m - paraCenSide_m) > 0 ? (periCenSide_m - paraCenSide_m) : 1);
-                divLength_mrfSurr = 1 / (float)((periSurrSide_m - paraSurrSide_m) > 0 ? (periSurrSide_m - paraSurrSide_m) : 1);
-                divLength_prfCen = 1 / (float)((periCenSide_p - paraCenSide_p) > 0 ? (periCenSide_p - paraCenSide_p) : 1);
-                divLength_prfSurr = 1 / (float)((periSurrSide_p - paraSurrSide_p) > 0 ? (periSurrSide_p - paraSurrSide_p) : 1);
+                divLength_mrfCen = 1 / (float)((periCenSide_m - paraCenSide_m) > 0 ? (periCenSide_m - paraCenSide_m) : -1);
+                divLength_mrfSurr = 1 / (float)((periSurrSide_m - paraSurrSide_m) > 0 ? (periSurrSide_m - paraSurrSide_m) : -1);
+                divLength_prfCen = 1 / (float)((periCenSide_p - paraCenSide_p) > 0 ? (periCenSide_p - paraCenSide_p) : -1);
+                divLength_prfSurr = 1 / (float)((periSurrSide_p - paraSurrSide_p) > 0 ? (periSurrSide_p - paraSurrSide_p) : -1);
 
                 // Calculation of respective RF sectors
                 divSector_mrfCen = (int)(radProg / divLength_mrfCen);
@@ -967,7 +967,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 currRand = uni(rng);
                 // ------------ Midget Centre ------------
-                if(divLength_mrfCen == 1){
+                if(divLength_mrfCen == -1){
                     tmpCenSide_m = periCenSide_m;
                 }else {
                     if(radProg > 1 - divLength_mrfCen){
@@ -987,7 +987,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Midget Surround------------
-                if(divLength_mrfSurr == 1){
+                if(divLength_mrfSurr == -1){
                     tmpSurrSide_m = periSurrSide_m;
                 } else {
                     if(radProg > 1 - divLength_mrfSurr){
@@ -1007,7 +1007,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Centre ------------
-                if(divLength_prfCen == 1){
+                if(divLength_prfCen == -1){
                     tmpCenSide_p = periCenSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfCen){
@@ -1027,7 +1027,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Surround ------------
-                if(divLength_prfSurr == 1){
+                if(divLength_prfSurr == -1){
                     tmpSurrSide_p = periSurrSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfSurr){
@@ -1146,10 +1146,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 // Then we calculate the length of the subdivisions within the band
                 divLength_df = 1 / (float)((rgcparams.divFactors[3] - rgcparams.divFactors[2]));
-                divLength_mrfCen = 1 / (float)((oz1CenSide_m - periCenSide_m) > 0 ? (oz1CenSide_m - periCenSide_m) : 1);
-                divLength_mrfSurr = 1 / (float)((oz1SurrSide_m - periSurrSide_m) > 0 ? (oz1SurrSide_m - periSurrSide_m) : 1);
-                divLength_prfCen = 1 / (float)((oz1CenSide_p - periCenSide_p) > 0 ? (oz1CenSide_p - periCenSide_p) : 1);
-                divLength_prfSurr = 1 / (float)((oz1SurrSide_p - periSurrSide_p) > 0 ? (oz1SurrSide_p - periSurrSide_p) : 1);
+                divLength_mrfCen = 1 / (float)((oz1CenSide_m - periCenSide_m) > 0 ? (oz1CenSide_m - periCenSide_m) : -1);
+                divLength_mrfSurr = 1 / (float)((oz1SurrSide_m - periSurrSide_m) > 0 ? (oz1SurrSide_m - periSurrSide_m) : -1);
+                divLength_prfCen = 1 / (float)((oz1CenSide_p - periCenSide_p) > 0 ? (oz1CenSide_p - periCenSide_p) : -1);
+                divLength_prfSurr = 1 / (float)((oz1SurrSide_p - periSurrSide_p) > 0 ? (oz1SurrSide_p - periSurrSide_p) : -1);
 
                 // Calculation of respective RF sectors
                 divSector_mrfCen = (int)(radProg / divLength_mrfCen);
@@ -1159,7 +1159,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 currRand = uni(rng);
                 // ------------ Midget Centre ------------
-                if(divLength_mrfCen == 1){
+                if(divLength_mrfCen == -1){
                     tmpCenSide_m = oz1CenSide_m;
                 }else {
                     if(radProg > 1 - divLength_mrfCen){
@@ -1179,7 +1179,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Midget Surround------------
-                if(divLength_mrfSurr == 1){
+                if(divLength_mrfSurr == -1){
                     tmpSurrSide_m = oz1SurrSide_m;
                 } else {
                     if(radProg > 1 - divLength_mrfSurr){
@@ -1199,7 +1199,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Centre ------------
-                if(divLength_prfCen == 1){
+                if(divLength_prfCen == -1){
                     tmpCenSide_p = oz1CenSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfCen){
@@ -1219,7 +1219,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Surround ------------
-                if(divLength_prfSurr == 1){
+                if(divLength_prfSurr == -1){
                     tmpSurrSide_p = oz1SurrSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfSurr){
@@ -1339,10 +1339,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 // Then we calculate the length of the subdivisions within the band
                 divLength_df = 1 / (float)((rgcparams.divFactors[4] - rgcparams.divFactors[3]));
-                divLength_mrfCen = 1 / (float)((oz2CenSide_m - oz1CenSide_m) > 0 ? (oz2CenSide_m - oz1CenSide_m) : 1);
-                divLength_mrfSurr = 1 / (float)((oz2SurrSide_m - oz1SurrSide_m) > 0 ? (oz2SurrSide_m - oz1SurrSide_m) : 1);
-                divLength_prfCen = 1 / (float)((oz2CenSide_p - oz1CenSide_p) > 0 ? (oz2CenSide_p - oz1CenSide_p) : 1);
-                divLength_prfSurr = 1 / (float)((oz2SurrSide_p - oz1SurrSide_p) > 0 ? (oz2SurrSide_p - oz1SurrSide_p) : 1);
+                divLength_mrfCen = 1 / (float)((oz2CenSide_m - oz1CenSide_m) > 0 ? (oz2CenSide_m - oz1CenSide_m) : -1);
+                divLength_mrfSurr = 1 / (float)((oz2SurrSide_m - oz1SurrSide_m) > 0 ? (oz2SurrSide_m - oz1SurrSide_m) : -1);
+                divLength_prfCen = 1 / (float)((oz2CenSide_p - oz1CenSide_p) > 0 ? (oz2CenSide_p - oz1CenSide_p) : -1);
+                divLength_prfSurr = 1 / (float)((oz2SurrSide_p - oz1SurrSide_p) > 0 ? (oz2SurrSide_p - oz1SurrSide_p) : -1);
 
                 // Calculation of respective RF sectors
                 divSector_mrfCen = (int)(radProg / divLength_mrfCen);
@@ -1352,7 +1352,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 currRand = uni(rng);
                 // ------------ Midget Centre ------------
-                if(divLength_mrfCen == 1){
+                if(divLength_mrfCen == -1){
                     tmpCenSide_m = oz2CenSide_m;
                 }else {
                     if(radProg > 1 - divLength_mrfCen){
@@ -1372,7 +1372,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Midget Surround------------
-                if(divLength_mrfSurr == 1){
+                if(divLength_mrfSurr == -1){
                     tmpSurrSide_m = oz2SurrSide_m;
                 } else {
                     if(radProg > 1 - divLength_mrfSurr){
@@ -1392,7 +1392,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Centre ------------
-                if(divLength_prfCen == 1){
+                if(divLength_prfCen == -1){
                     tmpCenSide_p = oz2CenSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfCen){
@@ -1412,7 +1412,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Surround ------------
-                if(divLength_prfSurr == 1){
+                if(divLength_prfSurr == -1){
                     tmpSurrSide_p = oz2SurrSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfSurr){
@@ -1539,10 +1539,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 // Then we calculate the length of the subdivisions within the band
                 divLength_df = 1 / (float)((rgcparams.divFactors[4] - rgcparams.divFactors[3]));
-                divLength_mrfCen = 1 / (float)((oz2CenSide_m - oz1CenSide_m) > 0 ? (oz2CenSide_m - oz1CenSide_m) : 1);
-                divLength_mrfSurr = 1 / (float)((oz2SurrSide_m - oz1SurrSide_m) > 0 ? (oz2SurrSide_m - oz1SurrSide_m) : 1);
-                divLength_prfCen = 1 / (float)((oz2CenSide_p - oz1CenSide_p) > 0 ? (oz2CenSide_p - oz1CenSide_p) : 1);
-                divLength_prfSurr = 1 / (float)((oz2SurrSide_p - oz1SurrSide_p) > 0 ? (oz2SurrSide_p - oz1SurrSide_p) : 1);
+                divLength_mrfCen = 1 / (float)((oz2CenSide_m - oz1CenSide_m) > 0 ? (oz2CenSide_m - oz1CenSide_m) : -1);
+                divLength_mrfSurr = 1 / (float)((oz2SurrSide_m - oz1SurrSide_m) > 0 ? (oz2SurrSide_m - oz1SurrSide_m) : -1);
+                divLength_prfCen = 1 / (float)((oz2CenSide_p - oz1CenSide_p) > 0 ? (oz2CenSide_p - oz1CenSide_p) : -1);
+                divLength_prfSurr = 1 / (float)((oz2SurrSide_p - oz1SurrSide_p) > 0 ? (oz2SurrSide_p - oz1SurrSide_p) : -1);
 
                 // Calculation of respective RF sectors
                 divSector_mrfCen = (int)(radProg / divLength_mrfCen);
@@ -1552,7 +1552,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 currRand = uni(rng);
                 // ------------ Midget Centre ------------
-                if(divLength_mrfCen == 1){
+                if(divLength_mrfCen == -1){
                     tmpCenSide_m = oz2CenSide_m;
                 }else {
                     if(radProg > 1 - divLength_mrfCen){
@@ -1572,7 +1572,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Midget Surround------------
-                if(divLength_mrfSurr == 1){
+                if(divLength_mrfSurr == -1){
                     tmpSurrSide_m = oz2SurrSide_m;
                 } else {
                     if(radProg > 1 - divLength_mrfSurr){
@@ -1592,7 +1592,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Centre ------------
-                if(divLength_prfCen == 1){
+                if(divLength_prfCen == -1){
                     tmpCenSide_p = oz2CenSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfCen){
@@ -1612,7 +1612,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Surround ------------
-                if(divLength_prfSurr == 1){
+                if(divLength_prfSurr == -1){
                     tmpSurrSide_p = oz2SurrSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfSurr){
@@ -1657,9 +1657,6 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                         divR = rgcparams.divFactors[3] + divSector_df + 1;
                     }
                 }
-//                 cout << "SOL : " << SOL << " || SOLGr : " << SOLGr << " || SolLs : " << SOLLs << " || ElXLs : " << ElXLs <<
-//                                        " || tan : "  << tan(angle) << " || ElYLs : " << ElYLs << " || x : " << j - fovx << " || y :" << diffY << " || angle : " << angleDeg << " || divL : " <<
-//                                        divLength_df <<  " || sector : " << divSector_df << " || radProg : " << radProg << " || divR : " << divR << endl;
                 if(i % divR == 0 && j % divR == 0){
                     if(tmpxSum == 0){
                         rgcArrayHeight+=1;
@@ -1735,10 +1732,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 // Then we calculate the length of the subdivisions within the band
                 divLength_df = 1 / (float)((rgcparams.divFactors[5] - rgcparams.divFactors[4]));
-                divLength_mrfCen = 1 / (float)((oz3CenSide_m - oz2CenSide_m) > 0 ? (oz3CenSide_m - oz2CenSide_m) : 1);
-                divLength_mrfSurr = 1 / (float)((oz3SurrSide_m - oz2SurrSide_m) > 0 ? (oz3SurrSide_m - oz2SurrSide_m) : 1);
-                divLength_prfCen = 1 / (float)((oz3CenSide_p - oz2CenSide_p) > 0 ? (oz3CenSide_p - oz2CenSide_p) : 1);
-                divLength_prfSurr = 1 / (float)((oz3SurrSide_p - oz2SurrSide_p) > 0 ? (oz3SurrSide_p - oz2SurrSide_p) : 1);
+                divLength_mrfCen = 1 / (float)((oz3CenSide_m - oz2CenSide_m) > 0 ? (oz3CenSide_m - oz2CenSide_m) : -1);
+                divLength_mrfSurr = 1 / (float)((oz3SurrSide_m - oz2SurrSide_m) > 0 ? (oz3SurrSide_m - oz2SurrSide_m) : -1);
+                divLength_prfCen = 1 / (float)((oz3CenSide_p - oz2CenSide_p) > 0 ? (oz3CenSide_p - oz2CenSide_p) : -1);
+                divLength_prfSurr = 1 / (float)((oz3SurrSide_p - oz2SurrSide_p) > 0 ? (oz3SurrSide_p - oz2SurrSide_p) : -1);
 
                 // Calculation of respective RF sectors
                 divSector_mrfCen = (int)(radProg / divLength_mrfCen);
@@ -1748,7 +1745,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 currRand = uni(rng);
                 // ------------ Midget Centre ------------
-                if(divLength_mrfCen == 1){
+                if(divLength_mrfCen == -1){
                     tmpCenSide_m = oz3CenSide_m;
                 }else {
                     if(radProg > 1 - divLength_mrfCen){
@@ -1768,7 +1765,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Midget Surround------------
-                if(divLength_mrfSurr == 1){
+                if(divLength_mrfSurr == -1){
                     tmpSurrSide_m = oz3SurrSide_m;
                 } else {
                     if(radProg > 1 - divLength_mrfSurr){
@@ -1788,7 +1785,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Centre ------------
-                if(divLength_prfCen == 1){
+                if(divLength_prfCen == -1){
                     tmpCenSide_p = oz3CenSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfCen){
@@ -1808,7 +1805,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Surround ------------
-                if(divLength_prfSurr == 1){
+                if(divLength_prfSurr == -1){
                     tmpSurrSide_p = oz3SurrSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfSurr){
@@ -1937,10 +1934,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 // Then we calculate the length of the subdivisions within the band
                 divLength_df = 1 / (float)((rgcparams.divFactors[5] - rgcparams.divFactors[4]));
-                divLength_mrfCen = 1 / (float)((oz3CenSide_m - oz2CenSide_m) > 0 ? (oz3CenSide_m - oz2CenSide_m) : 1);
-                divLength_mrfSurr = 1 / (float)((oz3SurrSide_m - oz2SurrSide_m) > 0 ? (oz3SurrSide_m - oz2SurrSide_m) : 1);
-                divLength_prfCen = 1 / (float)((oz3CenSide_p - oz2CenSide_p) > 0 ? (oz3CenSide_p - oz2CenSide_p) : 1);
-                divLength_prfSurr = 1 / (float)((oz3SurrSide_p - oz2SurrSide_p) > 0 ? (oz3SurrSide_p - oz2SurrSide_p) : 1);
+                divLength_mrfCen = 1 / (float)((oz3CenSide_m - oz2CenSide_m) > 0 ? (oz3CenSide_m - oz2CenSide_m) : -1);
+                divLength_mrfSurr = 1 / (float)((oz3SurrSide_m - oz2SurrSide_m) > 0 ? (oz3SurrSide_m - oz2SurrSide_m) : -1);
+                divLength_prfCen = 1 / (float)((oz3CenSide_p - oz2CenSide_p) > 0 ? (oz3CenSide_p - oz2CenSide_p) : -1);
+                divLength_prfSurr = 1 / (float)((oz3SurrSide_p - oz2SurrSide_p) > 0 ? (oz3SurrSide_p - oz2SurrSide_p) : -1);
 
                 // Calculation of respective RF sectors
                 divSector_mrfCen = (int)(radProg / divLength_mrfCen);
@@ -1950,7 +1947,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
                 currRand = uni(rng);
                 // ------------ Midget Centre ------------
-                if(divLength_mrfCen == 1){
+                if(divLength_mrfCen == -1){
                     tmpCenSide_m = oz3CenSide_m;
                 }else {
                     if(radProg > 1 - divLength_mrfCen){
@@ -1970,7 +1967,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Midget Surround------------
-                if(divLength_mrfSurr == 1){
+                if(divLength_mrfSurr == -1){
                     tmpSurrSide_m = oz3SurrSide_m;
                 } else {
                     if(radProg > 1 - divLength_mrfSurr){
@@ -1990,7 +1987,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Centre ------------
-                if(divLength_prfCen == 1){
+                if(divLength_prfCen == -1){
                     tmpCenSide_p = oz3CenSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfCen){
@@ -2010,7 +2007,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 }
 
                 // ------------ Parasol Surround ------------
-                if(divLength_prfSurr == 1){
+                if(divLength_prfSurr == -1){
                     tmpSurrSide_p = oz3SurrSide_p;
                 } else {
                     if(radProg > 1 - divLength_prfSurr){
@@ -2232,13 +2229,14 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
                                                         (params.ntransform + 1) * sizeof(TRANSFORM)));
     params.transform[params.ntransform].axis = ZPAN;
-    params.transform[params.ntransform].value = (M_PI / 180)*(60);
+    params.transform[params.ntransform].value = (M_PI / 180)*(30);
     params.ntransform++;
     for (int j=0;j<params.ntransform;j++) {
         params.transform[j].cvalue = cos(params.transform[j].value);
         params.transform[j].svalue = sin(params.transform[j].value);
     }
     //--------------------------------------------------------
+
 
 
 
@@ -2294,6 +2292,15 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     currentFrameRight = (uint8_t*)malloc(numOfPixels * 4 * sizeof(uint8_t));
     perspHost = (uint8_t*)malloc((perspHeight * perspWidth * 4) * sizeof(uint8_t));
 
+//    params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
+//                                                        (params.ntransform + 1) * sizeof(TRANSFORM)));
+//    params.transform[params.ntransform].axis = ZPAN;
+//    params.transform[params.ntransform].value = (M_PI / 180)*(30);
+//    params.ntransform++;
+//    for (int j=0;j<params.ntransform;j++) {
+//        params.transform[j].cvalue = cos(params.transform[j].value);
+//        params.transform[j].svalue = sin(params.transform[j].value);
+//    }
 
     const unsigned int bytes = frame_height * frame_width * sizeof(uint8_t);
     cudaMallocHost((void**)&currentFrameLeft, bytes * 4);
@@ -2319,6 +2326,11 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cudaMemcpy(ffmpegLV, frameLeft->data[2], (numOfPixels / 4) * sizeof(::uint8_t), cudaMemcpyHostToDevice);
         cudaMemcpy(ffmpegRV, frameRight->data[2], (numOfPixels / 4) * sizeof(::uint8_t), cudaMemcpyHostToDevice);
         cudaSetDevice(0);
+
+//        params.transform = static_cast<TRANSFORM *>(realloc(params.transform,
+//                                                            (params.ntransform + 1) * sizeof(TRANSFORM)));
+
+        //cudaMalloc(&devTrans, params.ntransform * sizeof(TRANSFORM));
 
 
 
@@ -2375,7 +2387,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         cudaSetDevice(0);
 
         // Transfer perspective frame back after computation - not necessary
-        cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(perspHost, perspLeft, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
         //else cudaMemcpy(perspHost, perspTest, (perspHeight * perspWidth * 4 ) * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 
 //
@@ -2440,9 +2452,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         // cout << "Current Size : " << rgcQueue_l->size() << std::endl;
         rgcCond.notify_all();
 
-//        auto stop = std::chrono::high_resolution_clock::now();
-//        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-//        cout << "Net duration of visual pass : " << duration << endl;
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+        cout << "Net duration of visual pass : " << duration << endl;
 
 
 
@@ -2524,3 +2536,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 //            cout << " ";
 //        }
 //        cout << endl;
+
+// To debug RGCdets creation
+//    if(j < fovx && i < fovy && fovy - i < 30) cout << "x : " << j - fovx << " || y :" << diffY << " || angle : " << angleDeg << " || divL : " <<
+//    divLength_df <<  " || sector_df : " << divSector_df <<  " || sector_mrfCen : " << divSector_mrfCen << " || divLen_mrfCen : "
+//    << divLength_mrfCen << " || divLen_mrfSurr : " << divLength_mrfSurr << " || sector_mrfSurr : " << divSector_mrfSurr
+//    <<" || CenSide : " << tmpCenSide_m << " || SurrSide : " << tmpSurrSide_m << " || radProg : " << radProg << " || divR : " << divR << endl;
