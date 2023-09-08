@@ -20,5 +20,5 @@ For CUDA 12.0
 - export LD_LIBRARY_PATH=/usr/local/cuda-12.0/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 To copy media files :
-cp '/home/kasm-user/Downloads/beachLeft.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud'
-cp '/home/kasm-user/Downloads/beachRight.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud'
+cp '/home/kasm-user/Downloads/beachLeft.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud' && cp '/home/kasm-user/Downloads/beachRight.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud'
+
