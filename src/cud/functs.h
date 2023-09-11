@@ -74,6 +74,11 @@ typedef struct {
     int debug;
 } PARAMS;
 
+//Input Modes
+#define VID 50
+#define VR 51
+
+//Transformations
 #define XTILT 0
 #define YROLL 1
 #define ZPAN  2
