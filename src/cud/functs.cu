@@ -152,16 +152,28 @@ void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS devicePara
     perspTest[(i * 4) + 2] = 0;
     perspTest[(i * 4) + 3] = 0;
 
+//        if((x < 900)){
+//            perspTest[(i * 4)] = perspLeft[(i * 4)];
+//            perspTest[(i * 4) + 1] = perspLeft[(i * 4) + 1];
+//            perspTest[(i * 4) + 2] = perspLeft[(i * 4) + 2];
+//            perspTest[(i * 4) + 3] = perspLeft[(i * 4) + 3];
+//    } else {
+////        perspLeft[(i * 4)] = 0;
+////        perspLeft[(i * 4) + 1] = 0;
+////        perspLeft[(i * 4) + 2] = 0;
+////        perspLeft[(i * 4) + 3] = 0;
+//    }
+
 //    if(((x / 50) % 2 == 0) && ((y / 50) % 2 == 0)){
+//        perspLeft[(i * 4)] = 0;
+//        perspLeft[(i * 4) + 1] = 255;
+//        perspLeft[(i * 4) + 2] = 0;
+//        perspLeft[(i * 4) + 3] = 255;
+//    } else {
 //        perspLeft[(i * 4)] = 0;
 //        perspLeft[(i * 4) + 1] = 0;
 //        perspLeft[(i * 4) + 2] = 0;
 //        perspLeft[(i * 4) + 3] = 0;
-//    } else {
-//        perspLeft[(i * 4)] = 255;
-//        perspLeft[(i * 4) + 1] = 255;
-//        perspLeft[(i * 4) + 2] = 255;
-//        perspLeft[(i * 4) + 3] = 255;
 //    }
 }
 
@@ -363,6 +375,12 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
         perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
         perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
     }
+//    if(RGCdet_l[posY][posX].type == MIDGET && RGCdet_l[posY][posX].detType == COLOR && RGCdet_l[posY][posX].colID == Y_rgc){
+//        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255);
+//        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255);
+//        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255);
+//        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255);
+//    }
 //    if(RGCdet_l[posY][posX].type == MIDGET && !(RGCdet_l[posY][posX].zone == FOV || RGCdet_l[posY][posX].zone == PARA)){
 //        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
 //        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 * (cenValL - surrValL)));
@@ -539,21 +557,48 @@ void ffmpeg2World(::uint8_t  *worldLeft, ::uint8_t  *worldRight, ::uint8_t  *ffl
 
 }
 
+__global__
+void ffmpeg2Persp(::uint8_t  *perspLeft, ::uint8_t  *perspRight, ::uint8_t  *ffly, ::uint8_t  *ffry, ::uint8_t  *fflu, ::uint8_t  *ffru, ::uint8_t  *fflv, ::uint8_t  *ffrv, PARAMS devParams){
 
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int u = i * 4;
+    int p_y = i;
+
+    int corrID = (((i / devParams.perspWidth)/2) * devParams.vLineSize) + ((i % devParams.perspWidth) / 2);
+
+    // R
+    perspLeft[u] = ffly[p_y] + (1.370705 * (fflv[corrID] - 128));
+    perspRight[u] = ffry[p_y] + (1.370705 * (ffrv[corrID] - 128));
+
+    // G
+    perspLeft[u + 1] = ffly[p_y] - (0.337633 * (fflu[corrID] - 128)) - (0.698001 * (fflv[corrID] - 128));
+    perspRight[u + 1] = ffry[p_y] - (0.337633 * (ffru[corrID] - 128)) - (0.698001 * (ffrv[corrID] - 128));
+
+    // B
+    perspLeft[u + 2] = ffly[p_y] + 1.732446 * (fflu[corrID] - 128);
+    perspRight[u + 2] = ffry[p_y] + 1.732446 * (ffru[corrID] - 128);
+
+    // A
+    perspLeft[u + 3] = ffly[p_y];
+    perspRight[u + 3] = ffry[p_y];
+
+}
 
 void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueue_r, queue<RGC**> *rgcDetsQ, vid2rgcParams *v2rp, mutex &rgcMut, condition_variable &rgcCond){
 
 
     // Video processing parameters
     VideoReaderState vr_stateLeft, vr_stateRight;
-    if (!video_reader_open(&vr_stateLeft, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachLeft.mp4")) {
+    if (!video_reader_open(&vr_stateLeft, "/home/kasm-user/CLionProjects/BlackTest/src/cud/sing4k.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
     }
-    if (!video_reader_open(&vr_stateRight, "/home/kasm-user/CLionProjects/BlackTest/src/cud/beachRight.mp4")) {
+    if (!video_reader_open(&vr_stateRight, "/home/kasm-user/CLionProjects/BlackTest/src/cud/sing4k.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
     }
+
+    int inputMode  = VID;
 
     // Allocate frameLeft buffer
     constexpr int ALIGNMENT = 128;
@@ -564,6 +609,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     const int camWidth = 1920;
     const int camHeight = 1080;
     int numOfPixels = frame_width * frame_height;
+    int perspNumofPixels = perspWidth * perspHeight;
     int *retinaDivs;
 
     GLFWwindow* window;
@@ -2337,6 +2383,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
 
     cudaMalloc(&devTrans, saccadeCount * sizeof(TRANSFORM));
+
+
     while(true){
 
 
@@ -2392,14 +2440,23 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         params.transform = devTrans;
 
 
-        // Changes the ffmpeg YUV frames to RGB WorldFrames
-        ffmpeg2World <<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>> (worldLeft, worldRight, ffmpegLY, ffmpegRY,
-                                                                            ffmpegLU, ffmpegRU, ffmpegLV, ffmpegRV, params);
-        cudaDeviceSynchronize();
+        if(inputMode == VID){
+            // Changes the ffmpeg YUV frames to RGB WorldFrames
+            ffmpeg2Persp <<<(perspNumofPixels+ 1023)/1024, 1024, 0, funcStream1>>> (perspLeft, perspRight, ffmpegLY, ffmpegRY,
+                                                                                ffmpegLU, ffmpegRU, ffmpegLV, ffmpegRV, params);
+            cudaDeviceSynchronize();
 
-        // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
-        world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum);
-        cudaDeviceSynchronize();
+        } else if (inputMode == VR) {
+            // Changes the ffmpeg YUV frames to RGB WorldFrames
+            ffmpeg2World <<<(numOfPixels + 1023)/1024, 1024, 0, funcStream1>>> (worldLeft, worldRight, ffmpegLY, ffmpegRY,
+                                                                                ffmpegLU, ffmpegRU, ffmpegLV, ffmpegRV, params);
+            cudaDeviceSynchronize();
+
+            // Converts vr 360 video into a perspective frame of dimensions perspHeight x perspWidth
+            world2Persp<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(worldLeft, perspLeft, worldRight, perspRight, params, frustum);
+            cudaDeviceSynchronize();
+        }
+
 
         // Creates test frame
         createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, perspLeft, params);
