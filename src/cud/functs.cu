@@ -274,6 +274,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
 
     cenIndex = (RGCdet_l[posY][posX].perspY * 4 * rgcparams.perspWidth) + (RGCdet_l[posY][posX].perspX * 4);
 
+
     for (int y = 1; y < (surrSide) + 1; y+=1){
         // Y boundary condition
         if ((((RGCdet_l[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet_l[posY][posX].perspY)) ||
@@ -306,6 +307,8 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                     testr+=1;
                     surrSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     surrIdeal += (float)(xComp + yComp) * 255;
+                } else if (RGCdet_l[posY][posX].detType == MOTION) {
+                    
                 } else if (RGCdet_l[posY][posX].detType == COLOR){
                     if(RGCdet_l[posY][posX].colID == R_rgc){
                         // Surround is -M                     // M
@@ -375,18 +378,12 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
         perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
         perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
     }
-//    if(RGCdet_l[posY][posX].type == MIDGET && RGCdet_l[posY][posX].detType == COLOR && RGCdet_l[posY][posX].colID == Y_rgc){
-//        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255);
-//        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255);
-//        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255);
-//        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255);
-//    }
-//    if(RGCdet_l[posY][posX].type == MIDGET && !(RGCdet_l[posY][posX].zone == FOV || RGCdet_l[posY][posX].zone == PARA)){
-//        perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
-//        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 * (cenValL - surrValL)));
-//        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
-//        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
-//    }
+    if(RGCdet_l[posY][posX].type == MIDGET && RGCdet_l[posY][posX].detType == COLOR && RGCdet_l[posY][posX].colID == Y_rgc){
+        perspTest[RGCdet_l[posY][posX].perspID] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)0;
+        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     leftInputs[posY][posX] = RGCdet_l[posY][posX].perspX;
@@ -589,11 +586,11 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
     // Video processing parameters
     VideoReaderState vr_stateLeft, vr_stateRight;
-    if (!video_reader_open(&vr_stateLeft, "/home/kasm-user/CLionProjects/BlackTest/src/cud/sing4k.mp4")) {
+    if (!video_reader_open(&vr_stateLeft, "/home/kasm-user/CLionProjects/BlackTest/src/cud/walk.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
     }
-    if (!video_reader_open(&vr_stateRight, "/home/kasm-user/CLionProjects/BlackTest/src/cud/sing4k.mp4")) {
+    if (!video_reader_open(&vr_stateRight, "/home/kasm-user/CLionProjects/BlackTest/src/cud/walk.mp4")) {
         cout << "ERROR!!" << endl;
         cout << "Couldn't open video file (make sure you set a video file that exists" << endl;
     }
@@ -2550,9 +2547,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         // cout << "Current Size : " << rgcQueue_l->size() << std::endl;
         rgcCond.notify_all();
 
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
-        cout << "Net duration of visual pass : " << duration << endl;
+
 
 
 
@@ -2573,6 +2568,9 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         glfwSwapBuffers(window);
         glfwPollEvents();
         // ::getchar();
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<chrono::microseconds>(stop - start).count();
+        cout << "Net duration of visual pass : " << duration << endl;
         toIgnore+=1;
 //        cudaFree(devTrans);
 //        cudaFree(retinaDivs);
