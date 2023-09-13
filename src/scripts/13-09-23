@@ -19,7 +19,6 @@
 #include "rgc.cuh"
 #include <thread>
 #include <random>
-#include <array>
 
 using namespace matplot;
 using namespace std;
@@ -404,9 +403,9 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
             // ----------------------------- X -------------------------------
         }
     }
-    for(int j = 0; j < 18000; j += 1){
-        RGCdet_l[posY][posX].parasolWeights_curr[j] = RGCdet_l[posY][posX].parasolWeights_fut[j];
-    }
+//    for(int j = 0; j < 18000; j += 1){
+//        RGCdet_l[posY][posX].parasolWeights_curr[j] = RGCdet_l[posY][posX].parasolWeights_fut[j];
+//    }
     // Calculating surround averages
     surrValL = surrSumL / surrIdeal;
     // Calculating center averages
@@ -2255,6 +2254,8 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
     // RGC tempRGC;
     for(int i = 0; i < rgcArrayHeight; i+=1){
 
+        int *dCurrWeights, *fFutWeights, *dPrevVals;
+        cudaMalloc((void**) &RGCdets_l[i], ((xWidthsHost[i] * sizeof(RGC))));
         cudaMalloc((void**) &RGCdets_l[i], ((xWidthsHost[i] * sizeof(RGC))));
         cudaMalloc((void**) &RGCdets_r[i], ((xWidthsHost[i] * sizeof(RGC))));
         cudaMemcpy(RGCdets_l[i], tmpRGCdets_l[i], xWidthsHost[i] * sizeof(RGC), cudaMemcpyHostToDevice);
