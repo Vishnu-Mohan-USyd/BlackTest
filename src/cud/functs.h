@@ -25,8 +25,10 @@ typedef struct {
     int zone;
     int surRfWidth;
     int cenRfSide;
-    int rFweights[250];
     int perspX, perspY, perspID;
+    int *parasolWeights_curr;
+    int *parasolWeights_fut;
+    int *previousValues;
 } RGC;
 
 typedef struct {
@@ -99,6 +101,7 @@ typedef struct {
 // RGC Detection types (detType)
 #define LUM 30
 #define COLOR 31
+#define MOTION 32
 
 // RGC neuron colours
 #define R_rgc 40
