@@ -978,7 +978,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.95){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1006,7 +1006,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.95){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1169,7 +1169,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.9){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1197,7 +1197,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.9){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1362,7 +1362,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.8){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1390,7 +1390,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.8){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1554,7 +1554,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.7){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1582,7 +1582,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.7){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1755,7 +1755,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.7){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1783,7 +1783,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.7){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1947,7 +1947,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.6){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -1975,7 +1975,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.6){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -2151,7 +2151,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.6){
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
@@ -2179,7 +2179,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                     currRand = uni(rng);
                     if(currRand > 0.6){
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                        tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = tmpCenSide_p;
                         tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = tmpSurrSide_p;
                     } else {
