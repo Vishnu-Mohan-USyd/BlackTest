@@ -129,11 +129,19 @@ XYZ VectorSum(double d1,XYZ p1,double d2,XYZ p2,double d3,XYZ p3,double d4,XYZ p
 }
 
 __global__
-void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS deviceParams){
+void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS deviceParams, int frameNum){
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     int x = i % deviceParams.perspWidth;
     int y = i / deviceParams.perspWidth;
+
+    int repeatNum = frameNum;
+    if(frameNum >= deviceParams.perspWidth - 1){
+        repeatNum = frameNum % deviceParams.perspWidth;
+    } else {
+        repeatNum = frameNum;
+    }
+
 
 //    if(true){
 //        perspTest[(i * 4)] = perspLeft[(i * 4)];
@@ -152,17 +160,18 @@ void createPerspTest(uint8_t  *perspTest, uint8_t  *perspLeft, PARAMS devicePara
     perspTest[(i * 4) + 2] = 0;
     perspTest[(i * 4) + 3] = 0;
 
-//        if((x < 900)){
-//            perspTest[(i * 4)] = perspLeft[(i * 4)];
-//            perspTest[(i * 4) + 1] = perspLeft[(i * 4) + 1];
-//            perspTest[(i * 4) + 2] = perspLeft[(i * 4) + 2];
-//            perspTest[(i * 4) + 3] = perspLeft[(i * 4) + 3];
-//    } else {
-////        perspLeft[(i * 4)] = 0;
-////        perspLeft[(i * 4) + 1] = 0;
-////        perspLeft[(i * 4) + 2] = 0;
-////        perspLeft[(i * 4) + 3] = 0;
-//    }
+    // Moving bar
+    if((x > (1700 + (3 * repeatNum))) && (x < (1800 + (3 * repeatNum)))){
+        perspLeft[(i * 4)] = 255;
+        perspLeft[(i * 4) + 1] = 255;
+        perspLeft[(i * 4) + 2] = 255;
+        perspLeft[(i * 4) + 3] = 255;
+    } else {
+        perspLeft[(i * 4)] = 0;
+        perspLeft[(i * 4) + 1] = 0;
+        perspLeft[(i * 4) + 2] = 0;
+        perspLeft[(i * 4) + 3] = 0;
+    }
 
 //    if(((x / 50) % 2 == 0) && ((y / 50) % 2 == 0)){
 //        perspLeft[(i * 4)] = 0;
@@ -318,28 +327,28 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                         // Checks to see if ON / OFF condition is met
 
                         if(perspLeft[currIndex + 3] > RGCdet_l[posY][posX].previousValues[internalIndex]) {
-                            surrSumL += ((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) +
+                            surrSumL += (float)(xComp + yComp) * (((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) +
                                        (((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) *
-                                        ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
-                            surrIdeal += 255 + (255 * ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
+                                        ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10)));
+                            surrIdeal += (float)(xComp + yComp) * (255 + ((float)255 * ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10)));
 
                             // Spreading weights to nearby units
-                            for(int w = 0; w < 9; w+=1){
-                                // Boundary check
-                                tempParasolIndex = (((y - 1) + ((w/3) - 1)) * surrSide) + ((x - 1) + ((w % 3) - 1));
-                                if((((y) + ((int)(w/3) - 1)) == 0 || ((x) + ((int)(w % 3) - 1)) == 0 || ((y) + ((int)(w/3) - 1)) == surrSide + 1 || ((x) + ((int)(w % 3) - 1)) == surrSide + 1) ||
-                                   (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex] >= (float)perspLeft[currIndex + 3] ||
-                                   RGCdet_l[posY][posX].perspX < 4 || RGCdet_l[posY][posX].perspY < 4 || RGCdet_l[posY][posX].perspX > rgcparams.perspWidth - 4 || RGCdet_l[posY][posX].perspY > rgcparams.perspHeight - 4){
-                                    continue;
-                                } else {
-                                    // Check to make sure only greater shifts in weights are done
-                                    if(RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] < (int)((((float)perspLeft[currIndex + 3] -
-                                                                                                            (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex]) / 255) * parasolWeight)){
-                                        RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] =
-                                                (int)((((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * parasolWeight);
-                                    }
-                                }
-                            }
+//                            for(int w = 0; w < 9; w+=1){
+//                                // Boundary check
+//                                tempParasolIndex = (((y - 1) + ((w/3) - 1)) * surrSide) + ((x - 1) + ((w % 3) - 1));
+//                                if((((y) + ((int)(w/3) - 1)) == 0 || ((x) + ((int)(w % 3) - 1)) == 0 || ((y) + ((int)(w/3) - 1)) == surrSide + 1 || ((x) + ((int)(w % 3) - 1)) == surrSide + 1) ||
+//                                   (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex] >= (float)perspLeft[currIndex + 3] ||
+//                                   RGCdet_l[posY][posX].perspX < 4 || RGCdet_l[posY][posX].perspY < 4 || RGCdet_l[posY][posX].perspX > rgcparams.perspWidth - 4 || RGCdet_l[posY][posX].perspY > rgcparams.perspHeight - 4){
+//                                    continue;
+//                                } else {
+//                                    // Check to make sure only greater shifts in weights are done
+//                                    if(RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] < (int)((((float)perspLeft[currIndex + 3] -
+//                                                                                                            (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex]) / 255) * parasolWeight)){
+//                                        RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] =
+//                                                (int)((((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * parasolWeight);
+//                                    }
+//                                }
+//                            }
                         }
                     }
                 }
@@ -384,7 +393,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                     if(frameNum == 0){
                         RGCdet_l[posY][posX].previousValues[internalIndex] = (float)perspLeft[currIndex + 3];
                         RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] = 0;
-                        cenSumL = 0; cenIdeal = 255;
+                        cenSumL = 0; cenIdeal = 1;
                     }else {
                         // Checks to see if ON / OFF condition is met
 
@@ -392,7 +401,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                             cenSumL += ((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) +
                                        (((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) *
                                         ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
-                            cenIdeal += 255 + (255 * ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
+                            cenIdeal += 255 + ((float)255 * ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
 
                             // Spreading weights to nearby units
                             for(int w = 0; w < 9; w+=1){
@@ -468,19 +477,19 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
 
     if(RGCdet_l[posY][posX].type == MIDGET && RGCdet_l[posY][posX].detType == LUM){
         perspTest[RGCdet_l[posY][posX].perspID] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
-        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 * (cenValL - surrValL)));
+        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
         perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
         perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
     }
-    if(RGCdet_l[posY][posX].type == MIDGET && RGCdet_l[posY][posX].detType == COLOR && RGCdet_l[posY][posX].colID == Y_rgc){
-        perspTest[RGCdet_l[posY][posX].perspID] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
-        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
-        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)0;
-        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
-    }
+//    if(RGCdet_l[posY][posX].type == MIDGET && RGCdet_l[posY][posX].detType == COLOR && RGCdet_l[posY][posX].colID == Y_rgc){
+//        perspTest[RGCdet_l[posY][posX].perspID] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+//        perspTest[RGCdet_l[posY][posX].perspID + 1] = (int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+//        perspTest[RGCdet_l[posY][posX].perspID + 2] =  (int)0;
+//        perspTest[RGCdet_l[posY][posX].perspID + 3] = (int)(int)(255 * ((((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
+//    }
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
-    leftInputs[posY][posX] = RGCdet_l[posY][posX].perspX;
+    leftInputs[posY][posX] = (float)(255 * ((float)(((cenValL - surrValL) < 0) ? -0 : 1) * 15 *(cenValL - surrValL)));
 
 }
 
@@ -840,7 +849,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 currRand = uni(rng);
                 if(currRand > 0.95){
                     tmpRGCdets_l[rgcArrayHeight][tmpxSum].type = PARASOL;
-                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets_l[rgcArrayHeight][tmpxSum].detType = MOTION;
                     tmpRGCdets_l[rgcArrayHeight][tmpxSum].cenRfSide = fovCenSide_p;
                     tmpRGCdets_l[rgcArrayHeight][tmpxSum].surRfWidth = fovSurrSide_p;
                 } else {
@@ -868,7 +877,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
                 currRand = uni(rng);
                 if(currRand > 0.95){
                     tmpRGCdets_r[rgcArrayHeight][tmpxSum].type = PARASOL;
-                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = LUM;
+                    tmpRGCdets_r[rgcArrayHeight][tmpxSum].detType = MOTION;
                     tmpRGCdets_r[rgcArrayHeight][tmpxSum].cenRfSide = fovCenSide_p;
                     tmpRGCdets_r[rgcArrayHeight][tmpxSum].surRfWidth = fovSurrSide_p;
                 } else {
@@ -2567,7 +2576,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 
 
         // Creates test frame
-        createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, perspLeft, params);
+        createPerspTest<<<((perspHeight * perspWidth) + 1023)/1024, 1024, 0, funcStream1>>>(perspTest, perspLeft, params, toIgnore);
         cudaDeviceSynchronize();
 
 
@@ -2644,10 +2653,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 //            for(int j = 0; j < xWidthsHost[p]; j+=1){
 //                if(true){
 //                    if(RGCdetsPin[p][j].detType == LUM && RGCdetsPin[p][j].type == MIDGET){
-//                        printf("\033[1;31m%f\033[0m", rgcInputPin_l[p][j]);
-//                        cout << " - ";
+//                        if(rgcInputPin_l[p][j] > 0) {printf("\033[1;31m%d\033[0m", RGCdetsPin[p][j].perspX);
+//                        cout << " - ";}
 //                    } else {
-//                        cout << rgcInputPin_l[p][j] << " - ";
+//                        //cout << rgcInputPin_l[p][j] << " - ";
 //                    }
 //                }
 //            }
