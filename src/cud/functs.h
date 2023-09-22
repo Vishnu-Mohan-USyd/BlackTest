@@ -27,7 +27,6 @@ typedef struct {
     int cenRfSide;
     int perspX, perspY, perspID;
     int *parasolWeights_curr;
-    int *parasolWeights_fut;
     int *previousValues;
 } RGC;
 
