@@ -245,7 +245,7 @@ void world2Persp(::uint8_t  *worldLeft, uint8_t  *perspLeft, ::uint8_t  *worldRi
 
 }
 __global__
-void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLeft, float** leftInputs, int* xWidths, int* yMatch, RGC** RGCdet_l)
+void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspLeft, float** leftInputs, int* xWidths, int* yMatch, RGC** RGCdet_l, int frameNum)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -289,7 +289,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                   ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet_l[posY][posX].perspX)))))) {
                 continue;
             }
-            internalIndex = ((y - 1) * RGCdet_l[posY][posX].cenRfSide) + (x - 1);
+            internalIndex = ((y - 1) * surrSide) + (x - 1);
             currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
             xComp = 0; yComp = 0;
 
@@ -308,7 +308,42 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                     testr+=1;
                     surrSumL += (float)(xComp + yComp) * (float)perspLeft[currIndex + 3];
                     surrIdeal += (float)(xComp + yComp) * 255;
-                }  else if (RGCdet_l[posY][posX].detType == COLOR){
+                }  // Parasol Cells
+                else if (RGCdet_l[posY][posX].detType == MOTION) {
+                    if(frameNum == 0){
+                        RGCdet_l[posY][posX].previousValues[internalIndex] = (float)perspLeft[currIndex + 3];
+                        RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] = 0;
+                        surrSumL = 0; surrIdeal = 255;
+                    }else {
+                        // Checks to see if ON / OFF condition is met
+
+                        if(perspLeft[currIndex + 3] > RGCdet_l[posY][posX].previousValues[internalIndex]) {
+                            surrSumL += ((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) +
+                                       (((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) *
+                                        ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
+                            surrIdeal += 255 + (255 * ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
+
+                            // Spreading weights to nearby units
+                            for(int w = 0; w < 9; w+=1){
+                                // Boundary check
+                                tempParasolIndex = (((y - 1) + ((w/3) - 1)) * surrSide) + ((x - 1) + ((w % 3) - 1));
+                                if((((y) + ((int)(w/3) - 1)) == 0 || ((x) + ((int)(w % 3) - 1)) == 0 || ((y) + ((int)(w/3) - 1)) == surrSide + 1 || ((x) + ((int)(w % 3) - 1)) == surrSide + 1) ||
+                                   (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex] >= (float)perspLeft[currIndex + 3] ||
+                                   RGCdet_l[posY][posX].perspX < 4 || RGCdet_l[posY][posX].perspY < 4 || RGCdet_l[posY][posX].perspX > rgcparams.perspWidth - 4 || RGCdet_l[posY][posX].perspY > rgcparams.perspHeight - 4){
+                                    continue;
+                                } else {
+                                    // Check to make sure only greater shifts in weights are done
+                                    if(RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] < (int)((((float)perspLeft[currIndex + 3] -
+                                                                                                            (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex]) / 255) * parasolWeight)){
+                                        RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] =
+                                                (int)((((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * parasolWeight);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (RGCdet_l[posY][posX].detType == COLOR){
                     if(RGCdet_l[posY][posX].colID == R_rgc){
                         // Surround is -M                     // M
                         surrSumL += ((xComp + yComp) * (float)perspLeft[currIndex + 1]);
@@ -345,40 +380,40 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                     cenIdeal += (float)(xComp + yComp) * 255;
                 }
                     // Parasol Cells
-//                else if (RGCdet_l[posY][posX].detType == MOTION) {
-//                    // Checks to see if ON / OFF condition is met
-//                    if(perspLeft[currIndex + 3] > RGCdet_l[posY][posX].previousValues[internalIndex]) {
-//                        cenSumL += ((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) +
-//                                   (((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) *
-//                                    ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
-//                        cenIdeal += 255 + (255 * ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
-//
-//                        // Spreading weights to nearby units
-//                        for(int w = 0; w < 9; w+=1){
-//                            // Boundary check
-//                            if((((y) + ((int)(w/3) - 1)) == 0 || ((x) + ((int)(w % 3) - 1)) == 0 || ((y) + ((int)(w/3) - 1)) == surrSide + 1 || ((x) + ((int)(w % 3) - 1)) == surrSide + 1) ||
-//                               (float)RGCdet_l[posY][posX].previousValues[(currIndex + (((int)(w / 3) - 1) * rgcparams.perspWidth * 4) + (((int)(w % 3) - 1) * 4) + 3)] >= (float)perspLeft[currIndex + 3] ||
-//                                    RGCdet_l[posY][posX].perspX < 4 || RGCdet_l[posY][posX].perspY < 4 || RGCdet_l[posY][posX].perspX > rgcparams.perspWidth - 4 || RGCdet_l[posY][posX].perspY > rgcparams.perspHeight - 4){
-//                                continue;
-//                            } else {
-//                                tempParasolIndex = (((y - 1) + ((w/3) - 1)) * surrSide) + ((x - 1) + ((w % 3) - 1));
-//
-//                                // Check to make sure only greater shifts in weights are done
-//                                if(RGCdet_l[posY][posX].parasolWeights_fut[tempParasolIndex] < (int)((((float)perspLeft[currIndex + 3] -
-//                                (float)RGCdet_l[posY][posX].previousValues[(currIndex + (((int)(w / 3) - 1)
-//                                * rgcparams.perspWidth * 4) + (((int)(w % 3) - 1) * 4) + 3)]) / 255) * parasolWeight)){
-//                                    RGCdet_l[posY][posX].parasolWeights_fut[tempParasolIndex] =
-//                                            (int)((((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[(currIndex + (((int)(w / 3) - 1)
-//                                                                                                                                               * rgcparams.perspWidth * 4) + (((int)(w % 3) - 1) * 4) + 3)]) / 255) * parasolWeight);
-//                                }
-//
-//                            }
-//                        }
-//                    }
-//
-//                    // The present becomes the past
-//                    RGCdet_l[posY][posX].previousValues[internalIndex] = perspLeft[currIndex + 3];
-//                }
+                else if (RGCdet_l[posY][posX].detType == MOTION) {
+                    if(frameNum == 0){
+                        RGCdet_l[posY][posX].previousValues[internalIndex] = (float)perspLeft[currIndex + 3];
+                        RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] = 0;
+                        cenSumL = 0; cenIdeal = 255;
+                    }else {
+                        // Checks to see if ON / OFF condition is met
+
+                        if(perspLeft[currIndex + 3] > RGCdet_l[posY][posX].previousValues[internalIndex]) {
+                            cenSumL += ((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) +
+                                       (((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) *
+                                        ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
+                            cenIdeal += 255 + (255 * ((float)RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] / 10));
+
+                            // Spreading weights to nearby units
+                            for(int w = 0; w < 9; w+=1){
+                                // Boundary check
+                                tempParasolIndex = (((y - 1) + ((w/3) - 1)) * surrSide) + ((x - 1) + ((w % 3) - 1));
+                                if((((y) + ((int)(w/3) - 1)) == 0 || ((x) + ((int)(w % 3) - 1)) == 0 || ((y) + ((int)(w/3) - 1)) == surrSide + 1 || ((x) + ((int)(w % 3) - 1)) == surrSide + 1) ||
+                                   (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex] >= (float)perspLeft[currIndex + 3] ||
+                                   RGCdet_l[posY][posX].perspX < 4 || RGCdet_l[posY][posX].perspY < 4 || RGCdet_l[posY][posX].perspX > rgcparams.perspWidth - 4 || RGCdet_l[posY][posX].perspY > rgcparams.perspHeight - 4){
+                                    continue;
+                                } else {
+                                    // Check to make sure only greater shifts in weights are done
+                                    if(RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] < (int)((((float)perspLeft[currIndex + 3] -
+                                                                                                           (float)RGCdet_l[posY][posX].previousValues[tempParasolIndex]) / 255) * parasolWeight)){
+                                        RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] =
+                                                (int)((((float)perspLeft[currIndex + 3] - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * parasolWeight);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                     // Midget - COLOR
                 else if (RGCdet_l[posY][posX].detType == COLOR){
                     if(RGCdet_l[posY][posX].colID == R_rgc){
@@ -403,9 +438,29 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
             // ----------------------------- X -------------------------------
         }
     }
-//    for(int j = 0; j < 18000; j += 1){
-//        RGCdet_l[posY][posX].parasolWeights_curr[j] = RGCdet_l[posY][posX].parasolWeights_fut[j];
-//    }
+// The present becomes the past
+    if(RGCdet_l[posY][posX].type == PARASOL && RGCdet_l[posY][posX].detType == MOTION){
+        for (int y = 1; y < (surrSide) + 1; y+=1){
+            // Y boundary condition
+            if ((((RGCdet_l[posY][posX].perspY < midY) && (y < midY) && ((midY - y) > RGCdet_l[posY][posX].perspY)) ||
+                 ((((rgcparams.perspHeight - 1) - (RGCdet_l[posY][posX].perspY)) < midY) && (y > midY) &&
+                  ((y - midY) > ((rgcparams.perspHeight - 1) - (RGCdet_l[posY][posX].perspY)))))) {
+                continue;
+            }
+            for(int x = 1; x < (surrSide) + 1; x += 1){
+                // X boundary condition
+                if ((((RGCdet_l[posY][posX].perspX < midX) && (x < midX) && ((midX - x) > RGCdet_l[posY][posX].perspX)) ||
+                     ((((rgcparams.perspWidth - 1) - (RGCdet_l[posY][posX].perspX)) < midX) && (x > midX) &&
+                      ((x - midX) > ((rgcparams.perspWidth - 1) - (RGCdet_l[posY][posX].perspX)))))) {
+                    continue;
+                }
+                internalIndex = ((y - 1) * surrSide) + (x - 1);
+                currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
+                RGCdet_l[posY][posX].previousValues[internalIndex] = (float)perspLeft[currIndex + 3];
+                if(RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] > 0) RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] -= 1;
+            }
+        }
+    }
     // Calculating surround averages
     surrValL = surrSumL / surrIdeal;
     // Calculating center averages
@@ -430,7 +485,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
 }
 
 __global__
-void formRGCcurrents_r(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspRight, float** rightInputs, int* xWidths, int* yMatch, RGC** RGCdet_r)
+void formRGCcurrents_r(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspRight, float** rightInputs, int* xWidths, int* yMatch, RGC** RGCdet_r, int frameNum)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -2262,12 +2317,10 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         for(int j = 0; j < xWidthsHost[i]; j += 1){
             if(tmpRGCdets_l[i][j].type == PARASOL){
                 cudaMalloc((void**)&tmpRGCdets_l[i][j].parasolWeights_curr, ((int)pow(((2 * tmpRGCdets_l[i][j].surRfWidth) + tmpRGCdets_l[i][j].cenRfSide), 2) * sizeof (int)));
-                cudaMalloc((void**)&tmpRGCdets_l[i][j].parasolWeights_fut, ((int)pow(((2 * tmpRGCdets_l[i][j].surRfWidth) + tmpRGCdets_l[i][j].cenRfSide), 2) * sizeof (int)));
                 cudaMalloc((void**)&tmpRGCdets_l[i][j].previousValues, ((int)pow(((2 * tmpRGCdets_l[i][j].surRfWidth) + tmpRGCdets_l[i][j].cenRfSide), 2) * sizeof (int)));
             }
             if(tmpRGCdets_r[i][j].type == PARASOL){
                 cudaMalloc((void**)&tmpRGCdets_r[i][j].parasolWeights_curr, ((int)pow(((2 * tmpRGCdets_r[i][j].surRfWidth) + tmpRGCdets_r[i][j].cenRfSide), 2) * sizeof (int)));
-                cudaMalloc((void**)&tmpRGCdets_r[i][j].parasolWeights_fut, ((int)pow(((2 * tmpRGCdets_r[i][j].surRfWidth) + tmpRGCdets_r[i][j].cenRfSide), 2) * sizeof (int)));
                 cudaMalloc((void**)&tmpRGCdets_r[i][j].previousValues, ((int)pow(((2 * tmpRGCdets_r[i][j].surRfWidth) + tmpRGCdets_r[i][j].cenRfSide), 2) * sizeof (int)));
             }
         }
@@ -2521,13 +2574,13 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
         // Forms RGC inputs
         formRGCcurrents_l<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspLeft,
                                                                               rgcInputsLeft_d, xWidthsDev, yMatchDev,
-                                                                              RGCDetsDev_l);
+                                                                              RGCDetsDev_l, toIgnore);
         cudaDeviceSynchronize();
 
 //        // Forms RGC inputs
         formRGCcurrents_r<<<(RGCcount + 1023) / 1024, 1024, 0, funcStream1>>>(rgcparams, perspTest, perspRight,
                                                                               rgcInputsRight_d, xWidthsDev, yMatchDev,
-                                                                              RGCDetsDev_r);
+                                                                              RGCDetsDev_r, toIgnore);
         cudaDeviceSynchronize();
 
         cudaSetDevice(0);
