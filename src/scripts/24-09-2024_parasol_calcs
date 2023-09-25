@@ -510,7 +510,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     //leftInputs[posY][posX] = (float)(((float)(((cenValL - surrValL) < 0) ? -0 : 1) * (cenValL - surrValL)));
-    RGCdet_l[posY][posX].cenVal = cenSumL;
+    RGCdet_l[posY][posX].cenVal = cenValL;
     RGCdet_l[posY][posX].surrVal = surrValL;
     leftInputs[posY][posX] = (int)(((cenValL - surrValL) > 0) ? 255 : 0);
 
@@ -758,7 +758,7 @@ void formRGCcurrents_lSec(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *per
     // To rectify -ve responses, just multiply the below with
     // (((cenValR - surrValR) < 0) ? -0 : 1)
     //leftInputs[posY][posX] = (float)(((float)(((cenValL - surrValL) < 0) ? -0 : 1) * (cenValL - surrValL)));
-    RGCdet_l[posY][posX].cenValSec = cenSumL;
+    RGCdet_l[posY][posX].cenValSec = cenValL;
     RGCdet_l[posY][posX].surrValSec = surrValL;
     leftInputs[posY][posX] = (int)(((cenValL - surrValL) > 0) ? 255 : 0);
 
@@ -2931,7 +2931,7 @@ void vid2rgc (int* frameNum, queue<float**> *rgcQueue_l, queue<float**> *rgcQueu
 //            }
 //        }
 // ---------------------------------- Print RGC vals ---------------------------------
-            if(toIgnore < 100){
+            if(toIgnore < 10){
                 cout << "Index : " << toIgnore << " || i : " << p << " || Length : " << xWidthsHost[p] << " || ";
                 for(int j = 0; j < xWidthsHost[p]; j+=1){
                     if(RGCdetsPin[p][j].perspX < 1000){
