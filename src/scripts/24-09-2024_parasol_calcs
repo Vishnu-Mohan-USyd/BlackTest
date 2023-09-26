@@ -272,7 +272,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Gets the current coords in the RGC array
-    int tempCumWidth = 0, posX = 0, posY = 0, internalIndex = 0, tempParasolIndex = 0, parasolWeight = 3;
+    int tempCumWidth = 0, posX = 0, posY = 0, internalIndex = 0, tempParasolIndex = 0, parasolWeight = 3, resetWeight = 7;
     for(int j = 0; j < rgcparams.rgcArrLen; j+=1){
         tempCumWidth += xWidths[j];
         if(i < tempCumWidth){
@@ -434,7 +434,7 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                                                                                                             (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * parasolWeight)){
                                         RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] +=
                                                 (int)((((float)((x == (frameNum + RGCdet_l[posY][posX].surRfWidth)) ? 255 : 0) - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * parasolWeight);
-                                        //cenSumL = 9696;
+                                        if(RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] > 3) RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] = 3;
                                     }
                                 }
                             }
@@ -488,9 +488,13 @@ void formRGCcurrents_l(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *perspL
                 currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
 
                 if((int)((x == (((frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0) - RGCdet_l[posY][posX].previousValues[internalIndex] <= 0) RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] += 1;
-                else {RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] -= (int)((((float)((x == (((frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0) - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * parasolWeight);}
+                else {
+                    RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] -= (int)((((float)((x == (((frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0) - (float)RGCdet_l[posY][posX].previousValues[internalIndex]) / 255) * resetWeight);
+                    if(RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] < -3) RGCdet_l[posY][posX].parasolWeights_curr[internalIndex] = -3;
+                }
 
                 RGCdet_l[posY][posX].previousValues[internalIndex] = (int)((x == (frameNum + RGCdet_l[posY][posX].surRfWidth)) ? 255 : 0);
+                if(RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] > 3) RGCdet_l[posY][posX].parasolWeights_curr[tempParasolIndex] = 3;
             }
         }
     }
@@ -526,7 +530,7 @@ void formRGCcurrents_lSec(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *per
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Gets the current coords in the RGC array
-    int tempCumWidth = 0, posX = 0, posY = 0, internalIndex = 0, tempParasolIndex = 0, parasolWeight = 3;
+    int tempCumWidth = 0, posX = 0, posY = 0, internalIndex = 0, tempParasolIndex = 0, parasolWeight = 3, resetWeight = 7;
     for(int j = 0; j < rgcparams.rgcArrLen; j+=1){
         tempCumWidth += xWidths[j];
         if(i < tempCumWidth){
@@ -687,6 +691,7 @@ void formRGCcurrents_lSec(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *per
                                                                                                                (float)RGCdet_l[posY][posX].previousValuesSec[internalIndex]) / 255) * parasolWeight)){
                                         RGCdet_l[posY][posX].parasolWeights_currSec[tempParasolIndex] +=
                                                 (int)((((float)((x == (((3 * frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0) - (float)RGCdet_l[posY][posX].previousValuesSec[internalIndex]) / 255) * parasolWeight);
+                                        if(RGCdet_l[posY][posX].parasolWeights_currSec[tempParasolIndex] > 3) RGCdet_l[posY][posX].parasolWeights_currSec[tempParasolIndex] = 3;
                                     }
                                 }
                             }
@@ -740,7 +745,10 @@ void formRGCcurrents_lSec(RGCPARAMS rgcparams, uint8_t *perspTest, uint8_t  *per
                 currIndex = cenIndex + ((y - midY) * 4 * rgcparams.perspWidth) + ((x - midX) * 4);
 
                 if((int)((x == (((3 * frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0) - RGCdet_l[posY][posX].previousValuesSec[internalIndex] <= 0) RGCdet_l[posY][posX].parasolWeights_currSec[internalIndex] += 1;
-                else {RGCdet_l[posY][posX].parasolWeights_currSec[internalIndex] -= (int)((((float)((x == (((3 * frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0) - (float)RGCdet_l[posY][posX].previousValuesSec[internalIndex]) / 255) * parasolWeight);}
+                else {
+                    RGCdet_l[posY][posX].parasolWeights_currSec[internalIndex] -= (int)((((float)((x == (((3 * frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0) - (float)RGCdet_l[posY][posX].previousValuesSec[internalIndex]) / 255) * resetWeight);
+                    if (RGCdet_l[posY][posX].parasolWeights_currSec[internalIndex] < -3) RGCdet_l[posY][posX].parasolWeights_currSec[internalIndex] = -3;
+                }
 
                 RGCdet_l[posY][posX].previousValuesSec[internalIndex] = (int)((x == (((3 * frameNum) + RGCdet_l[posY][posX].surRfWidth))) ? 255 : 0);
             }
