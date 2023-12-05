@@ -22,3 +22,4 @@ For CUDA 12.0
 To copy media files :
 cp '/home/kasm-user/Downloads/beachLeft.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud' && cp '/home/kasm-user/Downloads/beachRight.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud' && cp '/home/kasm-user/Downloads/walk.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud'
 
+https://code-with-me.global.jetbrains.com/4Wp1YoVWvtx_sHT9ckyAFA#p=CL&fp=4C788D4F4F4F1D8AAEB4F6C6D2C93BD8BB15BF9356C4F1D449D2D121AECD1C48
