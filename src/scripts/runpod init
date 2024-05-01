@@ -1,5 +1,6 @@
 // Installs basics, Cuda and FFMPEG essentials
 yes | sudo apt update && yes | sudo apt upgrade && yes | sudo apt-get install build-essential && yes | sudo apt-get install linux-headers-$(uname -r) && yes | sudo apt-get install xorg-dev libglu1-mesa-dev ffmpeg doxygen libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libavdevice-dev gnuplot-x11 && wget https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run && sudo sh cuda_12.0.0_525.60.13_linux.run
+yes | sudo apt update && yes | sudo apt upgrade && yes | sudo apt-get install build-essential && yes | sudo apt-get install linux-headers-$(uname -r) && yes | sudo apt-get install xorg-dev libglu1-mesa-dev ffmpeg doxygen libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libavdevice-dev gnuplot-x11 && wget https://developer.download.nvidia.com/compute/cuda/12.3.0/local_installers/cuda_12.3.0_545.23.06_linux.run && sudo sh cuda_12.3.0_545.23.06_linux.run
 
 // yes | sudo apt install nvidia-cuda-toolkit
 
@@ -16,8 +17,8 @@ For CUDA 12.0
 - wget https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
 - sudo sh cuda_12.0.0_525.60.13_linux.run
 - nano .bashrc
-- export PATH=/usr/local/cuda-12.0/bin${PATH:+:${PATH}}
-- export LD_LIBRARY_PATH=/usr/local/cuda-12.0/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+- export PATH=/usr/local/cuda-12.3/bin${PATH:+:${PATH}}
+- export LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 To copy media files :
 cp '/home/kasm-user/Downloads/beachLeft.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud' && cp '/home/kasm-user/Downloads/beachRight.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud' && cp '/home/kasm-user/Downloads/walk.mp4' '/home/kasm-user/CLionProjects/BlackTest/src/cud'
