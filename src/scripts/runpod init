@@ -1,9 +1,10 @@
 // Installs basics, Cuda and FFMPEG essentials
 yes | sudo apt update && yes | sudo apt upgrade && yes | sudo apt-get install build-essential && yes | sudo apt-get install linux-headers-$(uname -r) && yes | sudo apt-get install xorg-dev libglu1-mesa-dev ffmpeg doxygen libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libavdevice-dev gnuplot-x11 && wget https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run && sudo sh cuda_12.0.0_525.60.13_linux.run
-yes | sudo apt update && yes | sudo apt upgrade && yes | sudo apt-get install build-essential && yes | sudo apt-get install linux-headers-$(uname -r) && yes | sudo apt-get install xorg-dev libglu1-mesa-dev ffmpeg doxygen libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libavdevice-dev gnuplot-x11 && wget https://developer.download.nvidia.com/compute/cuda/12.3.0/local_installers/cuda_12.3.0_545.23.06_linux.run && sudo sh cuda_12.3.0_545.23.06_linux.run
+yes | sudo apt update && yes | sudo apt upgrade && yes | sudo apt-get install build-essential && yes | sudo apt-get install linux-headers-$(uname -r) && yes | sudo apt-get install xorg-dev libglu1-mesa-dev ffmpeg doxygen libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libavdevice-dev gnuplot-x11 && wget https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda_12.1.0_530.30.02_linux.run && sudo sh cuda_12.1.0_530.30.02_linux.run
 
 // yes | sudo apt install nvidia-cuda-toolkit
 
+pip install python3.8-distutils && pip install numpy && pip install torch && pip install torchvision && pip install tqdm && pip install snntorch
 // In case there isn't chrome :
 wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && yes | sudo apt install ./google-chrome-stable_current_amd64.deb && google-chrome https://www.jetbrains.com/clion/download/download-thanks.html --no-sandbox &>/dev/null & sleep 50 && sudo pkill -9 chrome && tar -xvf '/home/kasm-user/Downloads/CLion-2022.3.2.tar.gz' && cd '/home/kasm-user/clion-2022.3.2/bin' && echo 'export BROSWER=/usr/bin/google-chrome --no-sandbox' >> ~/.bashrc && sh clion.sh
 
@@ -25,5 +26,8 @@ cp '/home/kasm-user/Downloads/beachLeft.mp4' '/home/kasm-user/CLionProjects/Blac
 
 https://code-with-me.global.jetbrains.com/4Wp1YoVWvtx_sHT9ckyAFA#p=CL&fp=4C788D4F4F4F1D8AAEB4F6C6D2C93BD8BB15BF9356C4F1D449D2D121AECD1C48
 
-export LD_LIBRARY_PATH=/home/kasm-user/PycharmProjects/pythonProject/.venv/lib/python3.8/site-packages/nvidia/nvjitlink/lib:$LD_LIBRARY_PATH
+For current kasm desk:
+cd /usr/lib/x86_64-linux-gnu/ && sudo rm -f libcudnn* && sudo rm -f cudnn* && cd /usr/local/cuda-12.1/lib64 && sudo rm -f libcudnn* && cd /usr/local/cuda-12.1/include && sudo rm -f cudnn*
+
+
 
