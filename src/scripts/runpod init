@@ -31,5 +31,5 @@ cd /usr/lib/x86_64-linux-gnu/ && sudo rm -f libcudnn* && sudo rm -f cudnn* && cd
 
 yes | sudo apt install python3-pip && yes | curl -sS https://bootstrap.pypa.io/get-pip.py | python3.8 && yes | curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.8
 
-
+https://code-with-me.global.jetbrains.com/sr7UryOOVRK31e3JtDJ0fw#p=PY&fp=61AD9D15D029979CAD5018EE83A466DB96A765384B49E5542673D29A44367C44&newUi=true
 
